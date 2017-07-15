@@ -165,7 +165,7 @@ protected:
         locker.unlock();
     };
     virtual void _signalAvailability(bool canPull,unsigned long long countAvailable, float weight,char priority)=0;
-    virtual SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu,bool* hasPackets)=0;
+    virtual SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu)=0;
     virtual SCUD_RC _unlinkPredecessor(Linkable<TSchedulable,Tid>*  link){
         SCUD_PRINT_STR("enter Linkable::_unlinkPredecessor");
         locker.lock();
@@ -273,7 +273,6 @@ public:
         SCUD_PRINT_STR("exit Linkable::hasAfter");
         return res;
     }
-    
     SCUD_RC setHighThreshold(long high){
         if(high<0)
             return SCUD_RC_FAIL_INVALID_PARAM;
@@ -455,12 +454,12 @@ public:
      */
 template<typename TSchedulable,typename Tid> class LinkableNull :public Linkable<TSchedulable,Tid>{
 protected:
-    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu,bool* hasPackets){
+    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
         this->locker.lock();
         if(this->prev && canPull())
         {
-            retcode=this->prev->_pull(qu,&hasPackets);
+            retcode=this->prev->_pull(qu);
         }else if(retcode){
             retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
         }
@@ -472,11 +471,16 @@ protected:
     }
 public:
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
+        SCUD_PRINT_STR("enter LinkableNull::push");
+        SCUD_PRINT_STR("enter LinkableNull::pull");
         return SCUD_RC_OK;
     }
     struct Linkable<TSchedulable,Tid>::Queueable pull(SCUD_RC* retcode){
-        bool hasPackets;
-        return _pull(retcode,&hasPackets);
+        struct Linkable<TSchedulable,Tid>::Queueable ts;
+        SCUD_PRINT_STR("enter LinkableNull::pull");
+        *retcode= this->_pull(ts);
+        SCUD_PRINT_STR("exit LinkableNull::pull");
+        return ts;
     }
     bool canPull(){
         return this->prev->canPull();
@@ -489,12 +493,12 @@ public:
      */
 template<typename TSchedulable,typename Tid> class LinkableDropper :public Linkable<TSchedulable,Tid>{
 protected:
-    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu,bool* hasPackets){
+    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
         this->locker.lock();
         if(this->prev && canPull())
         {
-            retcode=this->prev->_pull(qu,&hasPackets);
+            retcode=this->prev->_pull(qu);
         }else if(retcode){
             retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
         }
@@ -512,8 +516,9 @@ public:
         this->setId(this);
     };
     struct Linkable<TSchedulable,Tid>::Queueable pull(SCUD_RC* retcode){
-        bool hasPackets;
-        return _pull(retcode,&hasPackets);
+        struct Linkable<TSchedulable,Tid>::Queueable ts;
+        *retcode= this->_pull(ts);
+        return ts;
     }
     
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
@@ -538,7 +543,7 @@ public:
 template<typename TSchedulable,typename Tid> class LinkableQueue :public Linkable<TSchedulable,Tid>{
     std::deque<struct Linkable<TSchedulable,Tid>::Queueable> queue;
 protected:
-    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu,bool* hasPackets){
+    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         //struct Linkable<TSchedulable,Tid>::Queueable ts;
         SCUD_RC retcode=SCUD_RC_OK;
         this->locker.lock();
@@ -584,9 +589,8 @@ public:
     };
     
     struct Linkable<TSchedulable,Tid>::Queueable pull(SCUD_RC* retcode){
-        bool hasPkts=true;
         struct Linkable<TSchedulable,Tid>::Queueable ts;
-        *retcode= this->_pull(ts,&hasPkts);
+        *retcode= this->_pull(ts);
         return ts;
     }
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
@@ -693,11 +697,11 @@ protected:
         SCUD_PRINT_STR("exit LinkableScheduler::unlinkSuccessor - OK");
         return SCUD_RC_OK;
     };
-    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu,bool* hasPackets){
+    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
         Linkable<TSchedulable,Tid>* link=this->calculateNextSource(true);
         if(link){
-            retcode=link->_pull(qu,hasPackets);
+            retcode=link->_pull(qu);
         }else{
             retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
         }
@@ -711,9 +715,8 @@ public:
     ~LinkableScheduler(){};
     LinkableScheduler(){};
     struct Linkable<TSchedulable,Tid>::Queueable pull(SCUD_RC* retcode){
-        bool temporaryBool;
         struct Linkable<TSchedulable,Tid>::Queueable ts;
-        *retcode=this->_pull(ts,&temporaryBool);
+        *retcode=this->_pull(ts);
         return ts;
     }
     SCUD_RC linkPredecessor(Linkable<TSchedulable,Tid>* link){
@@ -1014,7 +1017,7 @@ public:
     struct Linkable<TSchedulable,Tid>::Queueable pull(SCUD_RC* retcode){
         bool hasPkts=true;
         struct Linkable<TSchedulable,Tid>::Queueable ts;
-        *retcode= this->_pull(ts,&hasPkts);
+        *retcode= this->_pull(ts);
         return ts;
     }
 
@@ -1050,9 +1053,8 @@ public:
             this->setId(this);
         };
         struct Linkable<TSchedulable,Tid>::Queueable pull(SCUD_RC* retcode){
-            bool hasPkts=true;
             struct Linkable<TSchedulable,Tid>::Queueable ts;
-            *retcode=this->_pull(ts,&hasPkts);
+            *retcode=this->_pull(ts);
             return ts;
         }
         
