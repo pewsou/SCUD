@@ -290,6 +290,13 @@ protected:
     virtual SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>*  link,SchedulingProperties scps){
         return SCUD_RC_OK;
     };
+    virtual SCUD_RC _prePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+        struct Linkable<TSchedulable,Tid>::Queueable temp;
+        temp.schParam=-1;
+        SCUD_RC rc=SCUD_RC_OK;
+        qu=temp;
+        return rc;
+    };
 
 public:
     struct LinkedObjectsTuple {
@@ -710,7 +717,6 @@ public:
         }
         this->lockerLinkable.unlock();
         randoms[currentRandom]=rng.randomFloat();
-        
         return res;
     }
 };
@@ -721,8 +727,22 @@ public:
  */
 template<typename TSchedulable,typename Tid> class LinkableQueue :public Linkable<TSchedulable,Tid>{
     std::deque<struct Linkable<TSchedulable,Tid>::Queueable> queue;
-    //Locker lockerQueue;
 protected:
+    SCUD_RC _prePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+        struct Linkable<TSchedulable,Tid>::Queueable temp;
+        temp.schParam=-1;
+        SCUD_RC rc=SCUD_RC_OK;
+        this->lockerLinkable.lock();
+        if(queue.size()>this->lowT){
+            qu=this->queue.back();
+            rc=SCUD_RC_OK;
+        }else{
+            qu=temp;
+            rc=SCUD_RC_FAIL_LINK_UNDER_LOW_THRESHOLD;
+        }
+        this->lockerLinkable.unlock();
+        return rc;
+    }
     SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         //struct Linkable<TSchedulable,Tid>::Queueable ts;
         SCUD_RC retcode=SCUD_RC_OK;
