@@ -21,21 +21,24 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef Scud_h
 #define Scud_h
 
-#include <iostream>
 #include "deque"
 #include "map"
-#include "vector"
+#include <iostream>
 
 namespace SCUD{
 
+#define SCUD_VERSION "0.1.0"
 //#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 //#define SCUD_DEBUG_MODE_ENABLED
 //#define SCUD_CUSTOM_MUTEX_AVAILABLE
-
+//#define SCUD_CUSTOM_RNG_AVAILABLE
+//#define SCUD_CUSTOM_QUEUE_AVAILABLE
+    
 //-------------------------------------------------------
 //         PLEASE DO NOT EDIT BELOW THIS LINE
 //-------------------------------------------------------
+#define SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT 8
 #ifdef SCUD_USE_EXCEPTIONS
 #define SCUD_THROW_EXCEPTION(x) throw (x)
 #else
@@ -44,6 +47,7 @@ namespace SCUD{
     
 #ifdef SCUD_DEBUG_MODE_ENABLED
 #include <string>
+
 #define SCUD_PRINT_STR(x) {std::string s=(x);std::cout<<s<<std::endl;}
 #define SCUD_PRINT_STR_WITH_PARAM(x,param) {std::string s=(x);std::cout<<s<<(param)<<std::endl;}
 #else
@@ -92,7 +96,53 @@ typedef struct _Prim{
         retCode=SCUD_RC_OK;
     }
 } Schedulable;
-
+//#ifndef SCUD_CUSTOM_QUEUE_AVAILABLE
+//#include "mutex"
+//    template<typename TSchedulable>class CQueue{
+//    public:
+//        CQueue(){};
+//        void push(){};
+//        
+//        long long size();
+//        virtual ~CQueue(){};
+//    };
+//#else
+//    template<typename TSchedulable>class CQueue{
+//    public:
+//        CQueue(){};
+//        
+//        long long size();
+//        virtual ~CQueue(){};
+//    };
+//#endif
+#ifndef SCUD_CUSTOM_RNG_AVAILABLE
+#include <stdlib.h>
+#include <time.h>
+    class SCRng{
+    public:
+        SCRng(){
+            srand ((unsigned int)time(NULL));
+        };
+        //returns random number in range 0..RAND_MAX
+        int randomInt(){
+            
+            return rand();
+        };
+        //returns random number in range (0..1)
+        float randomFloat(){
+            return rand()/((float)RAND_MAX);
+        };
+        virtual ~SCRng(){};
+    };
+#else
+    class SCRng{
+    public:
+        SCRng(){};
+        void lock(){};
+        void unlock(){};
+        virtual ~SCRng(){};
+    };
+#endif
 #ifndef SCUD_CUSTOM_MUTEX_AVAILABLE
 #include "mutex"
 class Locker{
@@ -117,7 +167,11 @@ public:
 };
 #endif
 class SCHelper{
+    static char itsVersion[];
 public:
+    static char* version(){
+        return itsVersion;
+    }
     static std::string convertReturnCodeToString(SCUD_RC val){
         std::string result="Result: undefined";
         switch (val) {
@@ -164,8 +218,8 @@ protected:
     long lowT;
     Tid itsId;
     Locker lockerLinkable;
-    //Locker lockerId;
 public:
+
     struct Queueable{
         TSchedulable scheduled;
         unsigned long long schParam;
@@ -566,7 +620,10 @@ public:
         ---------------------------------------------------------------------------
      */
 template<typename TSchedulable,typename Tid> class LinkableDropper :public Linkable<TSchedulable,Tid>{
-    //Locker lockerDropper;
+    float randoms[SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT];
+    int currentRandom;
+    float droppingProbability;
+    SCRng rng;
 protected:
     SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
@@ -583,21 +640,47 @@ protected:
     void _signalAvailability(bool canPull,unsigned long long countAvailable,float weight,char priority){
         
     }
+    void initializeRandomSamples(){
+        currentRandom=0;
+        droppingProbability=-1;
+        for (int i=0;i<SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT;++i) {
+            randoms[i]=rng.randomFloat();
+        }
+        
+    }
 public:
     LinkableDropper(Tid tid){
 #ifdef SCUD_DEBUG_MODE_ENABLED
         this->elementClass="Dropper";
 #endif
         this->setId(tid);
+        initializeRandomSamples();
     };
     LinkableDropper(){
 #ifdef SCUD_DEBUG_MODE_ENABLED
         this->elementClass="Dropper";
 #endif
         this->setId(this);
+        initializeRandomSamples();
     };
+    //Probablity of dropping object; must be in range [0..1]
+    SCUD_RC setDroppingProbability(float probability){
+        if(probability<0||probability>1){
+            return SCUD_RC_FAIL_INVALID_PARAM;
+        }else{
+            this->lockerLinkable.lock();
+            this->droppingProbability=probability;
+            this->lockerLinkable.unlock();
+            return SCUD_RC_OK;
+        }
+    }
     SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
-        SCUD_RC retcode= this->_pull(qu);
+        SCUD_RC retcode=SCUD_RC_OK;
+        if(this->shouldDrop()==false){
+            this->lockerLinkable.lock();
+            retcode=this->prev->_pull(qu);
+            this->lockerLinkable.unlock();
+        }
         return retcode;
     }
     
@@ -613,9 +696,23 @@ public:
         return SCUD_RC_OK;
     };
     virtual bool canPull(){
-        return this->prev->canPull();
+        this->lockerLinkable.lock();
+        bool rc= this->prev->canPull();
+        this->lockerLinkable.unlock();
+        return rc;
     }
-
+    virtual bool shouldDrop(TSchedulable& sch, long long schedulingParam){
+        bool res=true;
+        this->lockerLinkable.lock();
+        currentRandom=(currentRandom+1)%SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT ;
+        if(randoms[currentRandom]>droppingProbability){
+            res=false;
+        }
+        this->lockerLinkable.unlock();
+        randoms[currentRandom]=rng.randomFloat();
+        
+        return res;
+    }
 };
 /*
  -------------------------------------------------------------------------
@@ -942,7 +1039,6 @@ template<typename TSchedulable,typename Tid> class  LinkableSchedulerNaiveRR:pub
         long long entriesCount=this->id2prepended.size();
         if(entriesCount==0){
             this->lockerLinkable.unlock();
-            //std::cout<<"entries:0"<<std::endl;
             return l;
         }
         if(entriesCount==1){
@@ -1004,7 +1100,6 @@ template<typename TSchedulable,typename Tid> class  LinkableSchedulerNaiveRR:pub
                 Linkable<TSchedulable,Tid>* l=0;
                 l=this->rit->second.link;
                 if(l){
-                    //std::cout<<"---"<<std::endl;
                     res=l->canPull();
                 }
             }else{
