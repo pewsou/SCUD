@@ -304,7 +304,9 @@ public:
         Linkable<TSchedulable,Tid>* thisObject;
         Linkable<TSchedulable,Tid>* nextObject;
         LinkedObjectsTuple(Linkable<TSchedulable,Tid>* p,Linkable<TSchedulable,Tid>* t,Linkable<TSchedulable,Tid>* n){
-            prevObject.push_back(p);
+            if(p){
+                prevObject.push_back(p);
+            }
             thisObject=t;
             nextObject=n;
         };
@@ -344,15 +346,17 @@ public:
         struct Linkable<TSchedulable,Tid>::Queueable ts;
         retcode=this->pull(ts);
         lockerLinkable.lock();
-        if(retcode==SCUD_RC_OK && this->next){
+        Linkable<TSchedulable,Tid>* n=this->next;
+        lockerLinkable.unlock();
+        if(retcode==SCUD_RC_OK && n){
             
-            this->next->push(ts.scheduled,ts.schParam);
+            n->push(ts.scheduled,ts.schParam);
             
         }else{
             SCUD_PRINT_STR("FAIL Linkable::pullAndPush");
             retcode=SCUD_RC_FAIL_OBJ_PROPAGATION_FAILED;
         }
-        lockerLinkable.unlock();
+        
         SCUD_PRINT_STR("exit Linkable::pullAndPush");
         return retcode;
     };
@@ -503,16 +507,21 @@ public:
         }else
         //if(next==0)
         {
+            SCUD_RC rc=SCUD_RC_OK;
             SCUD_PRINT_STR(" Linkable::linkSuccessor - next is empty");
             
             if(link->_linkPredecessor(this)==SCUD_RC_OK){
                 lockerLinkable.lock();
                 next=link;
                 lockerLinkable.unlock();
+                SCUD_PRINT_STR("exit Linkable::linkSuccessor - OK");
+            }else{
+                rc=SCUD_RC_LINK_FAILED;
+                SCUD_PRINT_STR("exit Linkable::linkSuccessor - link failed");
+                SCUD_THROW_EXCEPTION("exit Linkable::linkSuccessor - link failed");
             }
             
-            SCUD_PRINT_STR("exit Linkable::linkSuccessor - OK");
-            return SCUD_RC_OK;
+            return rc;
         }
         SCUD_PRINT_STR("exit Linkable::linkSuccessor - link exists");
         SCUD_THROW_EXCEPTION("exit Linkable::linkSuccessor - link exists");
@@ -570,15 +579,17 @@ protected:
         SCUD_RC retcode=SCUD_RC_OK;
         SCUD_PRINT_STR("enter LinkableNull::_pull");
         this->lockerLinkable.lock();
-        if(this->prev && _canPull())
+        Linkable<TSchedulable,Tid>* p=this->prev;
+        this->lockerLinkable.unlock();
+        if(p && _canPull())
         {
             SCUD_PRINT_STR("+LinkableNull::_pull");
-            retcode=this->prev->_pull(qu);
+            retcode=p->_pull(qu);
             SCUD_PRINT_STR("-LinkableNull::_pull");
         }else{
             retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
         }
-        this->lockerLinkable.unlock();
+        
         SCUD_PRINT_STR("exit LinkableNull::_pull");
         return retcode;
     }
@@ -587,10 +598,11 @@ protected:
     }
     bool _canPull(){
         bool res=false;
+        
         SCUD_PRINT_STR("enter LinkableNull::_canPull");
-        //this->lockerLinkable.lock();
+        this->lockerLinkable.lock();
         res= this->prev->canPull();
-        //this->lockerLinkable.unlock();
+        this->lockerLinkable.unlock();
         SCUD_PRINT_STR("exit LinkableNull::_canPull");
         return res;
     }
@@ -635,13 +647,16 @@ protected:
     SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
         this->lockerLinkable.lock();
-        if(this->prev && canPull())
+        Linkable<TSchedulable,Tid>* p=this->prev;
+        this->lockerLinkable.unlock();
+        if(p && canPull())
         {
-            retcode=this->prev->_pull(qu);
-        }else if(retcode){
+            retcode=p->_pull(qu);
+            
+        }else {
             retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
         }
-        this->lockerLinkable.unlock();
+
         return retcode;
     }
     void _signalAvailability(bool canPull,unsigned long long countAvailable,float weight,char priority){
@@ -683,29 +698,54 @@ public:
     }
     SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
-        if(this->shouldDrop()==false){
-            this->lockerLinkable.lock();
-            retcode=this->prev->_pull(qu);
-            this->lockerLinkable.unlock();
+        struct Linkable<TSchedulable,Tid>::Queueable pp;
+        this->lockerLinkable.lock();
+        Linkable<TSchedulable,Tid>* p=this->prev;
+        this->lockerLinkable.unlock();
+        if(p){
+            retcode=p->_prePull(pp);
+            if(retcode==SCUD_RC_OK && this->shouldDrop(pp.scheduled,pp.schParam)==false){
+                retcode=p->_pull(qu);
+            }
+        }else{
+            retcode=SCUD_RC_FAIL_LINK_NOT_EXISTS;
         }
+        
         return retcode;
     }
     
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
-        return SCUD_RC_OK;
+        SCUD_RC retcode=SCUD_RC_OK;
+        this->lockerLinkable.lock();
+        Linkable<TSchedulable,Tid>* n=this->next;
+        this->lockerLinkable.unlock();
+        if(n){
+            if(retcode==SCUD_RC_OK && this->shouldDrop(sch,schedulingParam)==false){
+                retcode=n->push(sch,schedulingParam);
+            }
+        }else{
+            retcode=SCUD_RC_FAIL_LINK_NOT_EXISTS;
+        }
+        
+        return retcode;
     }
     SCUD_RC setWeight(float w){
         this->lockerLinkable.lock();
-        if(this->next!=0){
-            this->next->setWeight(w);
-        }
+        Linkable<TSchedulable, Tid>* n=this->next;
         this->lockerLinkable.unlock();
+        
+        if(n!=0){
+            n->setWeight(w);
+        }
+        
         return SCUD_RC_OK;
     };
     virtual bool canPull(){
         this->lockerLinkable.lock();
-        bool rc= this->prev->canPull();
+        Linkable<TSchedulable,Tid>* p=this->prev;
         this->lockerLinkable.unlock();
+        bool rc= p->canPull();
+        
         return rc;
     }
     virtual bool shouldDrop(TSchedulable& sch, long long schedulingParam){
@@ -748,38 +788,45 @@ protected:
         SCUD_RC retcode=SCUD_RC_OK;
         this->lockerLinkable.lock();
         unsigned long long qs=queue.size();
+        Linkable<TSchedulable,Tid>* n=this->next;
         if(qs>0){
             if(this->lowT>=0 && qs>this->lowT)
             {
                 qu=this->queue.back();
                 this->queue.pop_back();
+                this->lockerLinkable.unlock();
                 if(qs-1<=this->lowT){
-                    if(this->next){
-                        this->next->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
+                    if(n){
+                        n->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
                     }
                 }
             }else{
-                if(this->next){
-                    this->next->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
+                this->lockerLinkable.unlock();
+                if(n){
+                    n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
                 }
                 //this->hasPackets=false;
                retcode=SCUD_RC_FAIL_LINK_UNDER_LOW_THRESHOLD;
             }
         }else{
-            if(this->next){
-                this->next->_signalAvailability(false,0,this->scp.weight,this->scp.priority);
+            this->lockerLinkable.unlock();
+            if(n){
+                n->_signalAvailability(false,0,this->scp.weight,this->scp.priority);
             }
             retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
         }
-        this->lockerLinkable.unlock();
+        
         return retcode;
     }
     void _signalAvailability(bool canPull,unsigned long long countAvailable,float weight,char priority){
+        
         this->lockerLinkable.lock();
-        if(this->next){
-            this->next->_signalAvailability(canPull, countAvailable,this->scp.weight,this->scp.priority);
-        }
+        Linkable<TSchedulable,Tid>* n=this->next;
         this->lockerLinkable.unlock();
+        if(n){
+            n->_signalAvailability(canPull, countAvailable,this->scp.weight,this->scp.priority);
+        }
+        
     }
 public:
     LinkableQueue(Tid tid){
@@ -803,23 +850,26 @@ public:
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
         SCUD_RC res=SCUD_RC_OK;
         this->lockerLinkable.lock();
+        Linkable<TSchedulable,Tid>* n=this->next;
         unsigned long long qs=queue.size();
-        if(this->highT>0 && qs<this->highT){
+        long hT=this->highT,lT=this->lowT;
+        if(hT>0 && qs<hT){
             struct Linkable<TSchedulable,Tid>::Queueable q;
             q.scheduled=sch;
             q.schParam=schedulingParam;
             this->queue.push_front(q);
-            if(this->next && qs+1>this->lowT && qs-this->lowT<2){
-                this->next->_signalAvailability(true,qs+1,this->scp.weight,this->scp.priority);
+            this->lockerLinkable.unlock();
+            if(n && qs+1>lT && qs-lT<2){
+                n->_signalAvailability(true,qs+1,this->scp.weight,this->scp.priority);
             }
 //            else{
 //                this->next->_signalAvailability(false,qs+1);
 //            }
-        }else if(qs>=this->highT){
-            
+        }else if(qs>=hT){
+            this->lockerLinkable.unlock();
             res=SCUD_RC_FAIL_LINK_ABOVE_HIGH_THRESHOLD;
         }
-        this->lockerLinkable.unlock();
+        
         
         return res;
     }
@@ -840,9 +890,9 @@ public:
         return res;
     }
     long long size(){
-        this->lockerQueue.lock();
+        this->lockerLinkable.lock();
         long long _size=queue.size();
-        this->lockerQueue.unlock();
+        this->lockerLinkable.unlock();
         return _size;
     }
 };
@@ -916,12 +966,16 @@ protected:
         return SCUD_RC_OK;
     };
     SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
-        SCUD_RC retcode=SCUD_RC_OK;
-        Linkable<TSchedulable,Tid>* link=this->calculateNextSource(true);
-        if(link){
-            retcode=link->_pull(qu);
-        }else{
-            retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
+        SCUD_RC retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
+        bool objEnded=false;
+        while(retcode==SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE){
+            Linkable<TSchedulable,Tid>* link=this->calculateNextSource(objEnded);
+            if(link){
+                retcode=link->_pull(qu);
+                if( link==0)
+                    break;
+            }
+            objEnded=true;
         }
         
         return retcode;
@@ -1002,10 +1056,12 @@ public:
         }
         id2prepended.clear();
         ptn.nextObject=this->next;
-        if(this->next){
-            this->next->_unlinkPredecessor(this);
-        }
+        Linkable<TSchedulable,Tid>* n=this->next;
         this->lockerLinkable.unlock();
+        if(n){
+            n->_unlinkPredecessor(this);
+        }
+        
         SCUD_PRINT_STR("exit LinkableScheduler::unlink");
         *rc=SCUD_RC_OK;
         return ptn;
@@ -1179,27 +1235,46 @@ template<typename TSchedulable,typename Tid> class  LinkableSchedulerPriority:pu
     }
 protected:
     char currentMaxPriority;
-    Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
+    long skipEntry;
+
+    Linkable<TSchedulable,Tid>* calculateNextSource(bool objsEnded){
         this->lockerLinkable.lock();
         Linkable<TSchedulable,Tid>* l=0;
         long long entriesCount=this->id2prepended.size();
         if(entriesCount==0 || currentMaxPriority<0){
             this->lockerLinkable.unlock();
+            skipEntry=0;
             return l;
         }
         l=prioritizedSources[currentMaxPriority];
+        //if last high-priority source was disconnected then move max priority pointer to next available entry
         if(l==0){
+            skipEntry=0;
             while (currentMaxPriority>-1 && prioritizedSources[currentMaxPriority]==0){
-                --currentMaxPriority;
                 l=prioritizedSources[currentMaxPriority];
-                }
+                --currentMaxPriority;
             }
+        }else
+        //if last high-priority source temporarily has no objects - offset max priority entry
+        if(objsEnded){
+            if(skipEntry>currentMaxPriority){
+                skipEntry=0;
+            }
+            ++skipEntry;
+            while (currentMaxPriority-skipEntry>-1 ){
+                l=prioritizedSources[currentMaxPriority-skipEntry];
+                if(l)
+                    break;
+                ++skipEntry;
+            }
+        }
         this->lockerLinkable.unlock();
         return l;
     };
 
     void _signalAvailability(bool canPull,unsigned long long countAvailable,float weight,char priority){
         this->lockerLinkable.lock();
+        skipEntry=0;
         //if objects can be pulled
         if(canPull){
             //then update current priority
@@ -1232,6 +1307,7 @@ protected:
     bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char p){
         //char p=link->getPriority();
         if(p<0){
+            SCUD_PRINT_STR("exit LinkableScheduler::_scheduleEntry - priority value less than zero; NOT scheduled");
             return false;
         }
         if(prioritizedSources[p]){
@@ -1277,6 +1353,7 @@ public:
 #endif
         resetPriorities();
         this->setId(tid);
+        skipEntry=0;
     };
     LinkableSchedulerPriority(){
 #ifdef SCUD_DEBUG_MODE_ENABLED
@@ -1284,6 +1361,7 @@ public:
 #endif
         resetPriorities();
         this->setId(this);
+        skipEntry=0;
     };
     SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode= this->_pull(qu);
@@ -1294,7 +1372,13 @@ public:
         return SCUD_RC_OK;
     }
     bool canPull(){
-        return true;
+        bool res=true;
+        this->lockerLinkable.lock();
+        if(currentMaxPriority<0||this->id2prepended.size()==0){
+            res=false;
+        }
+        this->lockerLinkable.unlock();
+        return res;
     }
 };
 }
