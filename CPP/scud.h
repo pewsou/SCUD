@@ -991,10 +991,12 @@ protected:
         }
         if(link==this){
             SCUD_PRINT_STR("exit LinkableScheduler::linkPredecessor");
+            SCUD_THROW_EXCEPTION("exit LinkableScheduler::linkPredecessor");
             return SCUD_RC_FAIL_SELF_REFERENCING_LINK_DETECTED;
         }
         if(link->hasAfter()){
             SCUD_PRINT_STR("exit LinkableScheduler::linkPredecessor");
+            SCUD_THROW_EXCEPTION("exit LinkableScheduler::linkPredecessor");
             return SCUD_RC_FAIL_LINK_HAS_SUCCESSOR;
         }
         SCUD_RC res=SCUD_RC_OK;
@@ -1017,6 +1019,7 @@ protected:
                 res= SCUD_RC_OK;
             }else{
                 SCUD_PRINT_STR("exit LinkableScheduler::linkPredecessor - FAIL: could not link");
+                SCUD_THROW_EXCEPTION("exit LinkableScheduler::linkPredecessor - FAIL: could not link");
                 res= SCUD_RC_LINK_FAILED;
             }
         }else{
