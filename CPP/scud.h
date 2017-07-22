@@ -201,6 +201,7 @@ template<typename TSchedulable,typename Tid> class LinkableDropper ;
 template<typename TSchedulable,typename Tid> class LinkableQueue;
 template<typename TSchedulable,typename Tid> class LinkableScheduler ;
 template<typename TSchedulable,typename Tid> class LinkableSchedulerPriority;
+template<typename TSchedulable,typename Tid> class LinkableSchedulerNaiveRR;
 template<typename TSchedulable,typename Tid> class LinkableNull;
     /*
      -----------------------------------------------------------------------------
@@ -1169,18 +1170,18 @@ template<typename TSchedulable,typename Tid> class  LinkableSchedulerNaiveRR:pub
             this->setId(this);
             this->rit=this->id2prepended.begin();
         };
-
         bool canPull(){
             bool res=false;
             SCUD_PRINT_STR("enter LinkableSchedulerNaiveRR::canPull");
             this->lockerLinkable.lock();
             long long entriesCount=this->id2prepended.size();
             if(entriesCount>0){
-                Linkable<TSchedulable,Tid>* l=0;
-                l=this->rit->second.link;
-                if(l){
-                    res=l->canPull();
-                }
+//                Linkable<TSchedulable,Tid>* l=0;
+//                l=this->rit->second.link;
+//                if(l){
+//                    res=l->canPull();
+//                }
+                res=true;
             }else{
                 
             }
