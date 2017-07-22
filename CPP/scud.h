@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace SCUD{
 
-#define SCUD_VERSION "0.1.0"
+#define SCUD_VERSION "0.1.1"
 //#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 //#define SCUD_DEBUG_MODE_ENABLED
