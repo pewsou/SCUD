@@ -693,6 +693,7 @@ public:
         this->setId(this);
         initializeRandomSamples();
     };
+
     //Probablity of dropping object; must be in range [0..1]
     SCUD_RC setDroppingProbability(float probability){
         if(probability<0||probability>1){
@@ -721,7 +722,6 @@ public:
         
         return retcode;
     }
-    
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
         SCUD_RC retcode=SCUD_RC_OK;
         this->lockerLinkable.lock();
