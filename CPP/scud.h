@@ -569,9 +569,7 @@ public:
         SCUD_THROW_EXCEPTION("exit Linkable::linkPredecessor - link exists");
         return SCUD_RC_FAIL_LINK_EXISTS;
     };
-    
-    //virtual Linkable<TSchedulable,Tid>* replace(Linkable<TSchedulable,Tid>*  link)=0;
- 
+
 };
     /*
      -----------------------------------------------------------------------------
@@ -652,6 +650,17 @@ template<typename TSchedulable,typename Tid> class LinkableDropper :public Linka
     float droppingProbability;
     SCRng rng;
 protected:
+    bool _shouldDrop(TSchedulable& sch, long long schedulingParam){
+        bool res=true;
+        this->lockerLinkable.lock();
+        currentRandom=(currentRandom+1)%SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT ;
+        if(randoms[currentRandom]>droppingProbability){
+            res=false;
+        }
+        this->lockerLinkable.unlock();
+        randoms[currentRandom]=rng.randomFloat();
+        return res;
+    }
     SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
         this->lockerLinkable.lock();
@@ -757,15 +766,7 @@ public:
         return rc;
     }
     virtual bool shouldDrop(TSchedulable& sch, long long schedulingParam){
-        bool res=true;
-        this->lockerLinkable.lock();
-        currentRandom=(currentRandom+1)%SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT ;
-        if(randoms[currentRandom]>droppingProbability){
-            res=false;
-        }
-        this->lockerLinkable.unlock();
-        randoms[currentRandom]=rng.randomFloat();
-        return res;
+        return _shouldDrop(sch, schedulingParam);
     }
 };
 /*
@@ -912,7 +913,6 @@ public:
  */
 template<typename TSchedulable,typename Tid> class LinkableScheduler :public Linkable<TSchedulable,Tid>{
 protected:
-    //Locker lockerSched;
     struct InternalContainer{
         typename Linkable<TSchedulable,Tid>::SchedulingProperties scps;
         Linkable<TSchedulable,Tid>* link;
