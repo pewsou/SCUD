@@ -137,9 +137,16 @@ typedef struct _Prim{
 #else
     class SCRng{
     public:
-        SCRng(){};
-        void lock(){};
-        void unlock(){};
+        SCRng(){
+            
+        };
+        //returns random number in range 0..RAND_MAX
+        int randomInt(){
+            
+        };
+        //returns random number in range (0..1)
+        float randomFloat(){
+        };
         virtual ~SCRng(){};
     };
 #endif
