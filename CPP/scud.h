@@ -152,25 +152,25 @@ typedef struct _Prim{
 #endif
 #ifndef SCUD_CUSTOM_MUTEX_AVAILABLE
 #include "mutex"
-class Locker{
+class SCLocker{
     std::mutex mut;
 public:
-    Locker(){};
+    SCLocker(){};
     void lock(){
         mut.lock();
     };
     void unlock(){
         mut.unlock();
     };
-    virtual ~Locker(){};
+    virtual ~SCLocker(){};
 };
 #else
-class Locker{
+class SCLocker{
 public:
-    Locker(){};
+    SCLocker(){};
     void lock(){};
     void unlock(){};
-    virtual ~Locker(){};
+    virtual ~SCLocker(){};
 };
 #endif
 class SCHelper{
@@ -225,7 +225,7 @@ protected:
     long highT;
     long lowT;
     Tid itsId;
-    Locker lockerLinkable;
+    SCLocker lockerLinkable;
 public:
 
     struct Queueable{
