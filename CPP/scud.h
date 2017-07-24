@@ -347,6 +347,9 @@ public:
     };
     //pull object from previous link if such exists
     virtual SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu)=0;
+    virtual void process(TSchedulable sch, long long schedulingParam){
+        
+    };
     //Pull object if available from previous link if such exists and push to next link if exists
     virtual SCUD_RC pullAndPush(){
         SCUD_RC retcode=SCUD_RC_OK;
@@ -357,7 +360,7 @@ public:
         Linkable<TSchedulable,Tid>* n=this->next;
         lockerLinkable.unlock();
         if(retcode==SCUD_RC_OK && n){
-            
+            this->process(ts.scheduled,ts.schParam);
             n->push(ts.scheduled,ts.schParam);
             
         }else{
