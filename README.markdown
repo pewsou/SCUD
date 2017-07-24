@@ -6,7 +6,7 @@ Objects may be dropped (filtered out). This SW does not depend on non-standard l
 
 * Current version
 
-0.1.1-Alpha
+0.1.2-Alpha
 
 * LICENSE
 
