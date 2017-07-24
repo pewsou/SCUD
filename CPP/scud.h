@@ -650,7 +650,7 @@ template<typename TSchedulable,typename Tid> class LinkableDropper :public Linka
     float droppingProbability;
     SCRng rng;
 protected:
-    bool _shouldDrop(TSchedulable& sch, long long schedulingParam){
+    bool _shouldDrop(TSchedulable sch, long long schedulingParam){
         bool res=true;
         this->lockerLinkable.lock();
         currentRandom=(currentRandom+1)%SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT ;
@@ -765,7 +765,7 @@ public:
         
         return rc;
     }
-    virtual bool shouldDrop(TSchedulable& sch, long long schedulingParam){
+    virtual bool shouldDrop(TSchedulable sch, long long schedulingParam){
         return _shouldDrop(sch, schedulingParam);
     }
 };
