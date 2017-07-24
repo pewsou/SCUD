@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace SCUD{
 
-#define SCUD_VERSION "0.1.2"
+#define SCUD_VERSION "0.1.3"
 //#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 //#define SCUD_DEBUG_MODE_ENABLED
@@ -347,6 +347,9 @@ public:
     };
     //pull object from previous link if such exists
     virtual SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu)=0;
+    virtual void process(TSchedulable sch, long long schedulingParam){
+        
+    };
     //Pull object if available from previous link if such exists and push to next link if exists
     virtual SCUD_RC pullAndPush(){
         SCUD_RC retcode=SCUD_RC_OK;
@@ -357,7 +360,7 @@ public:
         Linkable<TSchedulable,Tid>* n=this->next;
         lockerLinkable.unlock();
         if(retcode==SCUD_RC_OK && n){
-            
+            this->process(ts.scheduled,ts.schParam);
             n->push(ts.scheduled,ts.schParam);
             
         }else{
@@ -650,7 +653,7 @@ template<typename TSchedulable,typename Tid> class LinkableDropper :public Linka
     float droppingProbability;
     SCRng rng;
 protected:
-    bool _shouldDrop(TSchedulable& sch, long long schedulingParam){
+    bool _shouldDrop(TSchedulable sch, long long schedulingParam){
         bool res=true;
         this->lockerLinkable.lock();
         currentRandom=(currentRandom+1)%SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT ;
@@ -765,7 +768,7 @@ public:
         
         return rc;
     }
-    virtual bool shouldDrop(TSchedulable& sch, long long schedulingParam){
+    virtual bool shouldDrop(TSchedulable sch, long long schedulingParam){
         return _shouldDrop(sch, schedulingParam);
     }
 };
