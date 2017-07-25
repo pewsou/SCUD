@@ -32,7 +32,7 @@ namespace SCUD{
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 //#define SCUD_DEBUG_MODE_ENABLED
 #define SCUD_CUSTOM_MUTEX_AVAILABLE
-#define SCUD_CUSTOM_RNG_AVAILABLE
+//#define SCUD_CUSTOM_RNG_AVAILABLE
 //#define SCUD_CUSTOM_QUEUE_AVAILABLE
     
 //-------------------------------------------------------
@@ -737,7 +737,7 @@ public:
         this->lockerLinkable.unlock();
         if(p){
             retcode=p->_prePull(pp);
-            if(retcode==SCUD_RC_OK && this->shouldDrop(pp.scheduled,pp.schParam)==false){
+            if( this->shouldDrop(pp.scheduled,pp.schParam)==false){
                 retcode=p->_pull(qu);
                 this->processOnPull(qu.scheduled, qu.schParam);
             }
