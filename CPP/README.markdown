@@ -43,7 +43,7 @@ On the other side, declaration _LinkableQueue<int,void*> lq_ will create element
 Any element has next methods:
 * _e.linkSuccessor(f)_ - link two elements so that output of _e_ will be input of _f_.
 * _e.linkPredecessor(f)_ - link two elements so that output of _f_ will be input of _e_.
-* _e.unlink()_ - remove any preceding and succeeding link from _e_. This method returns a structure which contains vector of adresses of predecessors of given element, its own address, and its successor address.
+* _e.unlink()_ - remove any preceding and succeeding link from _e_. This method returns a structure **Linkable::LinkedObjectsTuple** which contains vector of adresses of predecessors of given element, its own address, and its successor address.
 * _e.push()_ - pass yor data object into chain.
 * _e.pull()_ - extract your data object from chain.
 * _e.pullAndPush()_ - extract data object from predecessor of _e_ and pass it to successor of _e_.
