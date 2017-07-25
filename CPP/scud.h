@@ -748,7 +748,7 @@ public:
         Linkable<TSchedulable,Tid>* n=this->next;
         this->lockerLinkable.unlock();
         if(n){
-            if(retcode==SCUD_RC_OK && this->shouldDrop(sch,schedulingParam)==false){
+            if(this->shouldDrop(sch,schedulingParam)==false){
                 retcode=n->push(sch,schedulingParam);
             }
         }else{
