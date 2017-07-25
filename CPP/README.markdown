@@ -47,5 +47,6 @@ Any element has next methods:
 * _e.push()_ - pass yor data object into chain.
 * _e.pull()_ - extract your data object from chain.
 * _e.pullAndPush()_ - extract data object from predecessor of _e_ and pass it to successor of _e_.
+* _e.setPriority()_ - set priority of _e_. This parameter will be used by scheduler.
 
 **NB:** Any element can have no more than 1 successor; all elements except the LinkableScheduler and its derivants may have multiple predecessors; Priority Scheduler may have any number of predecessors less than some number that is user-defined on compilation stage. Anyway for Priority Scheduler the number of priorities and therefore number of predecessors may not exceed 128. To define number of priorities alter the value of macro _SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES_
