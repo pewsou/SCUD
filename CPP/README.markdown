@@ -48,5 +48,14 @@ Any element has next methods:
 * _e.pull()_ - extract your data object from chain.
 * _e.pullAndPush()_ - extract data object from predecessor of _e_ and pass it to successor of _e_.
 * _e.setPriority()_ - set priority of _e_. This parameter will be used by scheduler.
-
+ 
 **NB:** Any element can have no more than 1 successor; all elements except the LinkableScheduler and its derivants may have multiple predecessors; Priority Scheduler may have any number of predecessors less than some number that is user-defined on compilation stage. Anyway for Priority Scheduler the number of priorities and therefore number of predecessors may not exceed 128. To define number of priorities alter the value of macro _SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES_
+
+**Behavior**:
+Queues introduce additional methods:
+* _size()_ - returns number of elements in given queue
+* _setLowThreshold()_ - set number of objects in queue, below which pulling will not actually take place. If _pull()_ is called and queue size is less than Low Threshold the call will do nothing.
+* _setHighThreshold()_ - set number of objects in queue, above which pushing will not actually take place. If _push()_ is called and queue size is greater than High Threshold the call will do nothing.
+* _empty()_ - empty the queue. Remember, the data objects DO NOT release user data. USer must manage data objects himself.
+
+**NB:** Data objects travelling inside the chain are encapsulated in special data structure. This data structure in some method calls is passed by value, so if you embed complex data type into this structure it may be copied!
