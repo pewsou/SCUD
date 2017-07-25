@@ -31,8 +31,8 @@ namespace SCUD{
 //#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 //#define SCUD_DEBUG_MODE_ENABLED
-//#define SCUD_CUSTOM_MUTEX_AVAILABLE
-//#define SCUD_CUSTOM_RNG_AVAILABLE
+#define SCUD_CUSTOM_MUTEX_AVAILABLE
+#define SCUD_CUSTOM_RNG_AVAILABLE
 //#define SCUD_CUSTOM_QUEUE_AVAILABLE
     
 //-------------------------------------------------------
@@ -143,17 +143,12 @@ typedef struct _Prim{
 #else
     class SCRng{
     public:
-        SCRng(){
-            
-        };
+        SCRng();
         //returns random number in range 0..RAND_MAX
-        int randomInt(){
-            
-        };
+        int randomInt();
         //returns random number in range (0..1)
-        float randomFloat(){
-        };
-        virtual ~SCRng(){};
+        float randomFloat();
+        virtual ~SCRng();
     };
 #endif
 #ifndef SCUD_CUSTOM_MUTEX_AVAILABLE
@@ -173,10 +168,10 @@ public:
 #else
 class SCLocker{
 public:
-    SCLocker(){};
-    void lock(){};
-    void unlock(){};
-    virtual ~SCLocker(){};
+    SCLocker();
+    void lock();
+    void unlock();
+    virtual ~SCLocker();
 };
 #endif
 class SCHelper{
