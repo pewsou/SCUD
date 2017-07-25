@@ -27,12 +27,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace SCUD{
 
-#define SCUD_VERSION "0.1.5"
+#define SCUD_VERSION "0.1.6"
 //#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 //#define SCUD_DEBUG_MODE_ENABLED
-#define SCUD_CUSTOM_MUTEX_AVAILABLE
-#define SCUD_CUSTOM_RNG_AVAILABLE
+//#define SCUD_CUSTOM_MUTEX_AVAILABLE
+//#define SCUD_CUSTOM_RNG_AVAILABLE
 //#define SCUD_CUSTOM_QUEUE_AVAILABLE
     
 //-------------------------------------------------------
@@ -223,7 +223,7 @@ protected:
         SchedulingProperties(){weight=-1;priority=-1;}
         SchedulingProperties(float w,char p){weight=w;priority=p;}
     };
-    //bool hasPackets;
+
     friend class LinkableQueue<TSchedulable,Tid>;
     friend class LinkableDropper<TSchedulable,Tid>;
     friend class LinkableScheduler<TSchedulable,Tid>;
@@ -329,11 +329,20 @@ public:
         lockerLinkable.unlock();
         SCUD_PRINT_STR("exit Linkable::~Linkable");
     };
-    //pull object from previous link if such exists
-    virtual SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu)=0;
-    virtual void process(TSchedulable sch, long long schedulingParam){
+    
+    virtual void processOnPullPush(TSchedulable sch, long long schedulingParam){
         
     };
+    virtual void processOnPull(TSchedulable sch, long long schedulingParam){
+        
+    };
+    virtual void processOnPush(TSchedulable sch, long long schedulingParam){
+        
+    };
+    //pull object from previous link if such exists
+    virtual SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu)=0;
+    //Push object along with scheduling property
+    virtual SCUD_RC push(TSchedulable sch, long long schedulingParam)=0;
     //Pull object if available from previous link if such exists and push to next link if exists
     virtual SCUD_RC pullAndPush(){
         SCUD_RC retcode=SCUD_RC_OK;
@@ -344,7 +353,7 @@ public:
         Linkable<TSchedulable,Tid>* n=this->next;
         lockerLinkable.unlock();
         if(retcode==SCUD_RC_OK && n){
-            this->process(ts.scheduled,ts.schParam);
+            this->processOnPullPush(ts.scheduled,ts.schParam);
             n->push(ts.scheduled,ts.schParam);
             
         }else{
@@ -355,8 +364,7 @@ public:
         SCUD_PRINT_STR("exit Linkable::pullAndPush");
         return retcode;
     };
-    //Push object along with scheduling property
-    virtual SCUD_RC push(TSchedulable sch, long long schedulingParam)=0;
+    
     virtual bool canPull()=0;
     virtual bool hasBefore(){
         SCUD_PRINT_STR("enter Linkable::hasBefore");
@@ -607,6 +615,7 @@ public:
     }
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
         SCUD_PRINT_STR("enter LinkableNull::push");
+        this->processOnPush(sch, schedulingParam);
         SCUD_PRINT_STR("enter LinkableNull::push");
         return SCUD_RC_OK;
     }
@@ -614,6 +623,7 @@ public:
         SCUD_RC retcode=SCUD_RC_OK;
         SCUD_PRINT_STR("enter LinkableNull::pull");
         retcode= this->_pull(qu);
+        this->processOnPull(qu.scheduled, qu.schParam);
         SCUD_PRINT_STR("exit LinkableNull::pull");
         return retcode;
     }
@@ -656,7 +666,6 @@ protected:
         if(p && canPull())
         {
             retcode=p->_pull(qu);
-            
         }else {
             retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
         }
@@ -709,8 +718,11 @@ public:
         this->lockerLinkable.unlock();
         if(p){
             retcode=p->_prePull(pp);
-            if(retcode==SCUD_RC_OK && this->shouldDrop(pp.scheduled,pp.schParam)==false){
+            if( retcode==SCUD_RC_OK && this->shouldDrop(pp.scheduled,pp.schParam)==false){
                 retcode=p->_pull(qu);
+                this->processOnPull(qu.scheduled, qu.schParam);
+            }else{
+                retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
             }
         }else{
             retcode=SCUD_RC_FAIL_LINK_NOT_EXISTS;
@@ -725,6 +737,7 @@ public:
         this->lockerLinkable.unlock();
         if(n){
             if(this->shouldDrop(sch,schedulingParam)==false){
+                this->processOnPush(sch, schedulingParam);
                 retcode=n->push(sch,schedulingParam);
             }
         }else{
@@ -801,7 +814,7 @@ protected:
                 if(n){
                     n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
                 }
-                //this->hasPackets=false;
+
                retcode=SCUD_RC_FAIL_LINK_UNDER_LOW_THRESHOLD;
             }
         }else{
@@ -841,10 +854,12 @@ public:
     SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
         retcode= this->_pull(qu);
+        this->processOnPull(qu.scheduled, qu.schParam);
         return retcode;
     }
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
         SCUD_RC res=SCUD_RC_OK;
+        this->processOnPush(sch, schedulingParam);
         this->lockerLinkable.lock();
         Linkable<TSchedulable,Tid>* n=this->next;
         long long qs=queue.size();
@@ -1034,6 +1049,7 @@ public:
     };
     SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=this->_pull(qu);
+        this->processOnPull(qu.scheduled, qu.schParam);
         return retcode;
     }
     SCUD_RC linkPredecessor(Linkable<TSchedulable,Tid>* link){
@@ -1043,7 +1059,7 @@ public:
         }
         return rc;
     }
-        typename Linkable<TSchedulable,Tid>::LinkedObjectsTuple unlink(SCUD_RC* rc){
+    typename Linkable<TSchedulable,Tid>::LinkedObjectsTuple unlink(SCUD_RC* rc){
         typename Linkable<TSchedulable,Tid>::LinkedObjectsTuple ptn(0,this,0);
         SCUD_PRINT_STR("enter LinkableScheduler::unlink");
         this->lockerLinkable.lock();
@@ -1081,10 +1097,10 @@ public:
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
         return SCUD_RC_OK;
     }
-    SCUD_RC pullAndPush(){
-        SCUD_PRINT_STR("enter and exit LinkableScheduler::pullAndPush");
-        return SCUD_RC_OK;
-    };
+//    SCUD_RC pullAndPush(){
+//        SCUD_PRINT_STR("enter and exit LinkableScheduler::pullAndPush");
+//        return SCUD_RC_OK;
+//    };
 
 };
     /*
@@ -1442,8 +1458,8 @@ protected:
         Linkable<TSchedulable,Tid>* n=this->next;
         this->lockerLinkable.unlock();
         if(n){
-            
-                retcode=n->push(sch,schedulingParam);
+            this->processOnPush(sch, schedulingParam);
+            retcode=n->push(sch,schedulingParam);
             
         }else{
             retcode=SCUD_RC_FAIL_LINK_NOT_EXISTS;
@@ -1455,6 +1471,7 @@ protected:
         SCUD_RC retcode=SCUD_RC_OK;
         SCUD_PRINT_STR("enter LinkablePass::pull");
         retcode= this->_pull(qu);
+        this->processOnPull(qu.scheduled, qu.schParam);
         SCUD_PRINT_STR("exit LinkablePass::pull");
         return retcode;
     }
