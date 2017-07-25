@@ -242,7 +242,7 @@ protected:
         SchedulingProperties(){weight=-1;priority=-1;}
         SchedulingProperties(float w,char p){weight=w;priority=p;}
     };
-    //bool hasPackets;
+
     friend class LinkableQueue<TSchedulable,Tid>;
     friend class LinkableDropper<TSchedulable,Tid>;
     friend class LinkableScheduler<TSchedulable,Tid>;
@@ -820,7 +820,7 @@ protected:
                 if(n){
                     n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
                 }
-                //this->hasPackets=false;
+
                retcode=SCUD_RC_FAIL_LINK_UNDER_LOW_THRESHOLD;
             }
         }else{
