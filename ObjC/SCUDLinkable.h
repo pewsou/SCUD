@@ -8,14 +8,14 @@
 
 #import <Foundation/Foundation.h>
 
-@interface Linkable : NSObject
+@interface SCUDLinkable : NSObject
 @property (readonly) char priority;
 @property (readonly) float weight;
 -(void)pull;
 -(void)push;
 -(void)pullAndPush;
--(void)linkPredecessor:(Linkable*) link;
--(void)linkSuccessor:(Linkable*) link;
+-(void)linkPredecessor:(SCUDLinkable*) link;
+-(void)linkSuccessor:(SCUDLinkable*) link;
 -(void)setPriority:(char) priority;
 -(void)setWeight:(float)weight;
 @end

@@ -6,8 +6,8 @@
 //  Copyright © 2017 bv. All rights reserved.
 //
 
-#import "Linkable.h"
+#import "SCUDLinkable.h"
 
-@implementation Linkable
+@implementation SCUDLinkable
 
 @end
