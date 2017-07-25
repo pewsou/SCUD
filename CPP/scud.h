@@ -739,6 +739,8 @@ public:
             if(this->shouldDrop(sch,schedulingParam)==false){
                 this->processOnPush(sch, schedulingParam);
                 retcode=n->push(sch,schedulingParam);
+            }else{
+                
             }
         }else{
             retcode=SCUD_RC_FAIL_LINK_NOT_EXISTS;
