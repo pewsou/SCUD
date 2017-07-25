@@ -52,10 +52,14 @@ Any element has next methods:
 **NB:** Any element can have no more than 1 successor; all elements except the LinkableScheduler and its derivants may have multiple predecessors; Priority Scheduler may have any number of predecessors less than some number that is user-defined on compilation stage. Anyway for Priority Scheduler the number of priorities and therefore number of predecessors may not exceed 128. To define number of priorities alter the value of macro _SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES_
 
 **Behavior**:
+
 Queues introduce additional methods:
 * _size()_ - returns number of elements in given queue
 * _setLowThreshold()_ - set number of objects in queue, below which pulling will not actually take place. If _pull()_ is called and queue size is less than Low Threshold the call will do nothing.
 * _setHighThreshold()_ - set number of objects in queue, above which pushing will not actually take place. If _push()_ is called and queue size is greater than High Threshold the call will do nothing.
 * _empty()_ - empty the queue. Remember, the data objects DO NOT release user data. User must manage data objects himself.
+
+Dropper introduce additional method:
+* _setDroppingProbability()_ set the probability which a data object will be dropped with. Must be in range [0..1].
 
 **NB:** Data objects travelling inside the chain are encapsulated in special data structure. This data structure in some method calls is passed by value, so if you embed complex data type into this structure it may be copied!
