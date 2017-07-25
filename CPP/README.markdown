@@ -56,6 +56,6 @@ Queues introduce additional methods:
 * _size()_ - returns number of elements in given queue
 * _setLowThreshold()_ - set number of objects in queue, below which pulling will not actually take place. If _pull()_ is called and queue size is less than Low Threshold the call will do nothing.
 * _setHighThreshold()_ - set number of objects in queue, above which pushing will not actually take place. If _push()_ is called and queue size is greater than High Threshold the call will do nothing.
-* _empty()_ - empty the queue. Remember, the data objects DO NOT release user data. USer must manage data objects himself.
+* _empty()_ - empty the queue. Remember, the data objects DO NOT release user data. User must manage data objects himself.
 
 **NB:** Data objects travelling inside the chain are encapsulated in special data structure. This data structure in some method calls is passed by value, so if you embed complex data type into this structure it may be copied!
