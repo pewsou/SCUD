@@ -36,7 +36,7 @@ Any element can be created using unique identifier. For example:
 _LinkableQueue<int,std::string> q("$");_
 
 That means the queueing element will hold data of type **int** with unique id "$" of type **std::string**.
-On the other side, declaration _LinkableQueue<int,void*> lq0_ will create element  w i t h o u t  explicit id - theat means in this case you need not to specify and manage identifiers.
+On the other side, declaration _LinkableQueue<int,void*> lq_ will create element  w i t h o u t  explicit id - theat means in this case you need not to specify and manage identifiers.
 
 **NB:** all elements that you want to have in the same routing chain must have the same type signature.
 
