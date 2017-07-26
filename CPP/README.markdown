@@ -65,17 +65,25 @@ Let us build the chaining route which consists of:
 2 concurrent queues with priorities 0 and 1 accordingly:
 
 _LinkableQueue<int,void*> queue1;_
+
 queue1.setPriority(0);
+
 _LinkableQueue<int,void*> queue2;_
+
 _queue2.setPriority(1);_
 
 Both queues are connected to a priority scheduler:
+
 _LinkableSchedulerPriority<int, void*> scheduler;_
+
 _scheduler.linkPredecessor(&queue1);_
+
 _queue2.linkSuccessor(&scheduler);_
 
 Second queue is preceded by a dropper (filter):
+
 _LinkableDropper<int,void*> dropper;_
+
 _dropper.linkSuccessor(&queue1);_
 
 Now we can concurrently push the data objects:
