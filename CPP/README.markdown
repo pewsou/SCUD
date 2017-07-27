@@ -22,7 +22,7 @@ SCUD
 
 # Data types
 
-**Linkable<typename TSchedulable,typename Tid>::Queueable** - data stucture carrying user data. Consists of two fields: 
+**Linkable<typename TSchedulable,typename Tid>::Queueable** - generic data stucture carrying user data. Consists of two fields: 
 * TSchedulable scheduled - a data to be routed; 
 * long long schParam; - numerical value used for scheduling; can be set to size of "scheduled" variable, for example, sizeof(int);
 
