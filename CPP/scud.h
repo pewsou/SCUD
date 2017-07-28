@@ -30,9 +30,10 @@ namespace SCUD{
 #define SCUD_VERSION "0.1.7"
 //#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
-//#define SCUD_DEBUG_MODE_ENABLED
-//#define SCUD_CUSTOM_MUTEX_AVAILABLE
-//#define SCUD_CUSTOM_RNG_AVAILABLE
+//#define SCUD_DEBUG_MODE_ENABLED 1
+//#define SCUD_CUSTOM_MUTEX_AVAILABLE 1
+//#define SCUD_CUSTOM_RNG_AVAILABLE 1
+//#define SCUD_CUSTOM_TIME_AVAILABLE 1
 //#define SCUD_CUSTOM_QUEUE_AVAILABLE
 #define SCUD_DRR_QUANTUM 10
 //-------------------------------------------------------
@@ -134,6 +135,25 @@ typedef struct _Prim{
         virtual ~SCRng();
     };
 #endif
+#ifndef SCUD_CUSTOM_TIME_AVAILABLE
+#include "chrono"
+    class SCTime{
+    public:
+        SCTime(){};
+        long long getTime(){
+            return 0;
+        };
+        virtual ~SCTime(){};
+    };
+#else
+    class SCTime{
+    public:
+        SCTime();
+        long long getTime();
+        virtual ~SCTime();
+    };
+#endif
+
 #ifndef SCUD_CUSTOM_MUTEX_AVAILABLE
 #include "mutex"
 class SCLocker{

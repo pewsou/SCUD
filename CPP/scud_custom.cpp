@@ -42,3 +42,14 @@ void SCUD::SCLocker::lock(){};
 void SCUD::SCLocker::unlock(){};
 SCUD::SCLocker::~SCLocker(){};
 #endif
+#ifdef SCUD_CUSTOM_TIME_AVAILABLE
+SCUD::SCTime::SCTime(){
+    
+}
+long long SCUD::SCTime::getTime(){
+    return 0;
+}
+SCUD::SCTime::~SCTime(){
+    
+}
+#endif
