@@ -34,7 +34,7 @@ namespace SCUD{
 //#define SCUD_CUSTOM_MUTEX_AVAILABLE
 //#define SCUD_CUSTOM_RNG_AVAILABLE
 //#define SCUD_CUSTOM_QUEUE_AVAILABLE
-#define SCUD_DRR_QUANTUM 1
+#define SCUD_DRR_QUANTUM 10
 //-------------------------------------------------------
 //         PLEASE DO NOT EDIT BELOW THIS LINE
 //-------------------------------------------------------
@@ -64,6 +64,8 @@ typedef enum {
     SCUD_RC_FAIL_INVALID_PARAM,
     SCUD_RC_FAIL_INVALID_PRIORITY,
     SCUD_RC_FAIL_INVALID_WEIGHT,
+    SCUD_RC_FAIL_INVALID_DRR_QUANTUM,
+    SCUD_RC_FAIL_INVALID_SCHEDULING_PARAM,
     SCUD_RC_FAIL_LINK_EXISTS,
     SCUD_RC_FAIL_LINK_NOT_EXISTS,
     SCUD_RC_FAIL_SELF_REFERENCING_LINK_DETECTED,
@@ -180,6 +182,8 @@ public:
             case SCUD_RC_FAIL_LINK_ABOVE_HIGH_THRESHOLD:result="FAIL: above high threshold";break;
             case SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE:result="FAIL: no object is available";break;
             case SCUD_RC_FAIL_OBJ_PROPAGATION_FAILED:result="FAIL: object propagation failed";break;
+            case SCUD_RC_FAIL_INVALID_DRR_QUANTUM:result="Invalid DRR quantum, must be strictly positive";break;
+            case SCUD_RC_FAIL_INVALID_SCHEDULING_PARAM:result="Invalid scheduling parameter, must be strictly positive";break;
             default:
                 break;
         }
@@ -795,8 +799,8 @@ public:
 template<typename TSchedulable,typename Tid> class LinkableQueue :public Linkable<TSchedulable,Tid>{
     std::deque<struct Linkable<TSchedulable,Tid>::Queueable> queue;
 protected:
-    long defcount;
-    long drrQuantum;
+    long long defcount;
+    long long drrQuantum;
     bool isEligibleForDrr(long long objsize,bool ignoreDC){
         if(ignoreDC)
             return true;
@@ -804,7 +808,7 @@ protected:
         if(objsize>defcount){
             return false;
         }
-        defcount=defcount-objsize;
+        
         return true;
     }
     SCUD_RC _prePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
@@ -827,39 +831,51 @@ protected:
         struct Linkable<TSchedulable,Tid>::Queueable temp;
         temp.schParam=-1;
         this->lockerLinkable.lock();
-        long ldc=drrQuantum;
+        long long ldc=drrQuantum;
         long long qs=queue.size();
         Linkable<TSchedulable,Tid>* n=this->next;
+        //if(defcount<0){
+        //    defcount=drrQuantum;
+        //}
         if(qs>0)
         {
             if(this->lowT>=0 && qs>this->lowT)
             {
-                defcount=defcount+ldc;
                 temp=this->queue.back();
-                //std::cout<<"1.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
+                //printf("\n1.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
+                //std::cout<<"\n1.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 bool dcc=isEligibleForDrr(temp.schParam, uCI.ssciDRR.ignoreDrr);
                 if(dcc){
                     qu=temp;
                     this->queue.pop_back();
+                    
+                    defcount=defcount-temp.schParam;
+                    //printf("\n1.1.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
                     //std::cout<<"1.1.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 }else{
-                    
+                    //printf("\n1.2.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
+                    //defcount=0;
                     //std::cout<<"1.2.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
+                    defcount=defcount+ldc;
                     retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
                 }
                 this->lockerLinkable.unlock();
+                
                 if(qs-1<=this->lowT)
                 {
                     //defcount=ldc;
+                    //printf("\n2.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
                     //std::cout<<"2.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                     if(n){
                         n->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
                     }
                 }
-            }else{
+            }
+            else{
                 this->lockerLinkable.unlock();
-                defcount=ldc;
-                std::cout<<"3.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
+                defcount=0;
+                //printf("\n3.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
+                //std::cout<<"3.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 if(n){
                     n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
                 }
@@ -868,7 +884,7 @@ protected:
             }
         }else{
             this->lockerLinkable.unlock();
-            defcount=ldc;
+            defcount=0;
             if(n){
                 n->_signalAvailability(false,0,this->scp.weight,this->scp.priority);
             }
@@ -904,7 +920,18 @@ public:
         this->defcount=SCUD_DRR_QUANTUM;
         this->drrQuantum=SCUD_DRR_QUANTUM;
     };
-    
+    SCUD_RC setDRRQuantum(long quantum){
+        SCUD_PRINT_STR("enter LinkableQueue::setDRRQuantum ");
+        if(quantum<1){
+            SCUD_PRINT_STR("exit LinkableQueue::setDRRQuantum - invalid DRR quantum");
+            return SCUD_RC_FAIL_INVALID_DRR_QUANTUM;
+        }
+        this->lockerLinkable.lock();
+        drrQuantum=quantum;
+        this->lockerLinkable.unlock();
+        SCUD_PRINT_STR("exit LinkableQueue::setDRRQuantum ");
+        return SCUD_RC_OK;
+    }
     SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
         typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
@@ -914,8 +941,13 @@ public:
         return retcode;
     }
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
+        SCUD_PRINT_STR("enter LinkableQueue::push ");
+        if(schedulingParam<1){
+            SCUD_PRINT_STR("exit LinkableQueue::push - invalid scheduling param, must be strictly positive");
+            return SCUD_RC_FAIL_INVALID_SCHEDULING_PARAM;
+        }
         SCUD_RC res=SCUD_RC_OK;
-        this->processOnPush(sch, schedulingParam);
+        
         this->lockerLinkable.lock();
         Linkable<TSchedulable,Tid>* n=this->next;
         long long qs=queue.size();
@@ -929,6 +961,7 @@ public:
             if(n && qs+1>lT && qs-lT<2){
                 n->_signalAvailability(true,qs+1,this->scp.weight,this->scp.priority);
             }
+            this->processOnPush(sch, schedulingParam);
 //            else{
 //                this->next->_signalAvailability(false,qs+1);
 //            }
@@ -937,7 +970,7 @@ public:
             res=SCUD_RC_FAIL_LINK_ABOVE_HIGH_THRESHOLD;
         }
         
-        
+        SCUD_PRINT_STR("exit LinkableQueue::push ");
         return res;
     }
     virtual SCUD_RC empty(){
