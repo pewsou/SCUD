@@ -834,28 +834,20 @@ protected:
         long long ldc=drrQuantum;
         long long qs=queue.size();
         Linkable<TSchedulable,Tid>* n=this->next;
-        //if(defcount<0){
-        //    defcount=drrQuantum;
-        //}
+        
         if(qs>0)
         {
             if(this->lowT>=0 && qs>this->lowT)
             {
                 temp=this->queue.back();
-                //printf("\n1.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                //std::cout<<"\n1.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 bool dcc=isEligibleForDrr(temp.schParam, uCI.ssciDRR.ignoreDrr);
                 if(dcc){
                     qu=temp;
                     this->queue.pop_back();
                     
                     defcount=defcount-temp.schParam;
-                    //printf("\n1.1.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                    //std::cout<<"1.1.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 }else{
-                    //printf("\n1.2.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                    //defcount=0;
-                    //std::cout<<"1.2.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
+
                     defcount=defcount+ldc;
                     retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
                 }
@@ -863,9 +855,6 @@ protected:
                 
                 if(qs-1<=this->lowT)
                 {
-                    //defcount=ldc;
-                    //printf("\n2.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                    //std::cout<<"2.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                     if(n){
                         n->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
                     }
@@ -874,8 +863,6 @@ protected:
             else{
                 this->lockerLinkable.unlock();
                 defcount=0;
-                //printf("\n3.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                //std::cout<<"3.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 if(n){
                     n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
                 }
