@@ -4,6 +4,8 @@ The blocks include but not limited to: generalized Queue, Dropper (filter) and S
 Combining these entities into forwarding rout one can insert his data objects into FIFO containers and then select some container each time and pull data object. 
 Objects may be dropped (filtered out). This SW does not depend on non-standard libraries, is self-contained, supports any version of C++ starting from C++11, can be customized.
 
+More details can be found on wiki: [https://github.com/pewsou/SCUD/wiki](https://github.com/pewsou/SCUD/wiki)
+
 * Current version
 
 0.1.7-Alpha
