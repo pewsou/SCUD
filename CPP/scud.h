@@ -27,7 +27,7 @@
 
 namespace SCUD{
     
-#define SCUD_VERSION "0.1.7"
+#define SCUD_VERSION "0.1.8"
     //#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
     //#define SCUD_DEBUG_MODE_ENABLED
