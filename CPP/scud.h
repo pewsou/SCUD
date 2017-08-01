@@ -747,6 +747,7 @@ public:
     }
     SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
         SCUD_RC retcode=SCUD_RC_OK;
+        SCUD_PRINT_STR("enter LinkableDropper::Pull");
         struct Linkable<TSchedulable,Tid>::Queueable pp;
         this->lockerLinkable.lock();
         Linkable<TSchedulable,Tid>* p=this->prev;
@@ -764,7 +765,7 @@ public:
         }else{
             retcode=SCUD_RC_FAIL_LINK_NOT_EXISTS;
         }
-        
+        SCUD_PRINT_STR("enter LinkableDropper::Pull");
         return retcode;
     }
     SCUD_RC push(TSchedulable sch, long long schedulingParam){
@@ -854,28 +855,20 @@ protected:
         long long ldc=drrQuantum;
         long long qs=queue.size();
         Linkable<TSchedulable,Tid>* n=this->next;
-        //if(defcount<0){
-        //    defcount=drrQuantum;
-        //}
+        
         if(qs>0)
         {
             if(this->lowT>=0 && qs>this->lowT)
             {
                 temp=this->queue.back();
-                //printf("\n1.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                //std::cout<<"\n1.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 bool dcc=isEligibleForDrr(temp.schParam, uCI.ssciDRR.ignoreDrr);
                 if(dcc){
                     qu=temp;
                     this->queue.pop_back();
                     
                     defcount=defcount-temp.schParam;
-                    //printf("\n1.1.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                    //std::cout<<"1.1.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 }else{
-                    //printf("\n1.2.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                    //defcount=0;
-                    //std::cout<<"1.2.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
+
                     defcount=defcount+ldc;
                     retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
                 }
@@ -883,9 +876,6 @@ protected:
                 
                 if(qs-1<=this->lowT)
                 {
-                    //defcount=ldc;
-                    //printf("\n2.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                    //std::cout<<"2.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                     if(n){
                         n->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
                     }
@@ -894,8 +884,6 @@ protected:
             else{
                 this->lockerLinkable.unlock();
                 defcount=0;
-                //printf("\n3.defcount=%lld;temp.schParam=%lld,quant=%lld",defcount,temp.schParam,drrQuantum);
-                //std::cout<<"3.defcount="<<defcount<<";temp.schParam="<<temp.schParam<<std::endl;
                 if(n){
                     n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
                 }
@@ -1088,12 +1076,15 @@ protected:
     SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
         SCUD_RC retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
         bool objEnded=false;
-        while(retcode==SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE){
+        while(retcode==SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE)
+        {
             Linkable<TSchedulable,Tid>* link=this->calculateNextSource(objEnded);
             if(link){
                 retcode=link->_pull(qu,this->usci);
-                if( link==0)
-                    break;
+                //if( link==0)
+                //    break;
+            }else{
+                break;
             }
             objEnded=true;
         }
@@ -1154,7 +1145,7 @@ public:
     ~LinkableScheduler(){};
     LinkableScheduler(){
 #ifdef SCUD_DEBUG_MODE_ENABLED
-        this->elementClass="Scheduler";
+        this->elementClass="GenericScheduler";
 #endif
         usci.ssciDRR.ignoreDrr=true;
     };
@@ -1243,8 +1234,16 @@ template<typename TSchedulable,typename Tid> class  LinkableSchedulerNaiveRR:pub
             return l;
         }
         if(entriesCount==1){
-            this->rit=this->id2prepended.begin();
+            if(this->rit==this->id2prepended.end()){
+                l=0;
+                this->rit=this->id2prepended.begin();
+                this->lockerLinkable.unlock();
+                return l;
+            }
             l=this->rit->second.link;
+            
+            ++this->rit;
+            
             if(l && l->canPull()){
                 
             }else{
@@ -1291,6 +1290,12 @@ template<typename TSchedulable,typename Tid> class  LinkableSchedulerNaiveRR:pub
             this->setId(this);
             this->rit=this->id2prepended.begin();
         };
+//    SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+//        typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
+//        uCI.ssciDRR.ignoreDrr=true;
+//        SCUD_RC retcode= this->_pull(qu,uCI);
+//        return retcode;
+//    }
         bool canPull(){
             bool res=false;
             SCUD_PRINT_STR("enter LinkableSchedulerNaiveRR::canPull");
@@ -1598,12 +1603,12 @@ public:
         skipEntry=0;
         
     };
-    SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
-        typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
-        uCI.ssciDrr.ignoreDrr=true;
-        SCUD_RC retcode= this->_pull(qu,uCI);
-        return retcode;
-    }
+//    SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+//        typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
+//        uCI.ssciDRR.ignoreDrr=true;
+//        SCUD_RC retcode= this->_pull(qu,uCI);
+//        return retcode;
+//    }
 
     SCUD_RC drop(){
         return SCUD_RC_OK;
@@ -1628,7 +1633,7 @@ public:
      */
 template<typename TSchedulable,typename Tid> class LinkablePass :public Linkable<TSchedulable,Tid>{
 protected:
-    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, long drrQuantum,bool ignoreDefC){
+    /*SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, long drrQuantum,bool ignoreDefC){
         SCUD_RC retcode=SCUD_RC_OK;
         SCUD_PRINT_STR("enter LinkablePass::_pull");
         this->lockerLinkable.lock();
@@ -1647,7 +1652,26 @@ protected:
         
         SCUD_PRINT_STR("exit LinkableNull::_pull");
         return retcode;
+    }*/
+    SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
+        SCUD_RC retcode=SCUD_RC_OK;
+        SCUD_PRINT_STR("enter LinkablePass::_pull");
+        this->lockerLinkable.lock();
+        Linkable<TSchedulable,Tid>* p=this->prev;
+        this->lockerLinkable.unlock();
+        if(p && _canPull())
+        {
+            SCUD_PRINT_STR("+LinkablePass::_pull");
+            retcode=p->_pull(qu,uCI);
+            SCUD_PRINT_STR("-LinkablePass::_pull");
+        }else{
+            retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
+        }
+        
+        SCUD_PRINT_STR("exit LinkablePass::_pull");
+        return retcode;
     }
+
     void _signalAvailability(bool canPull, long long countAvailable, float weight,char priority){
         SCUD_PRINT_STR("LinkablePass::_signalAvailability");
         
@@ -1711,13 +1735,13 @@ protected:
     }
     bool canPull(){
         SCUD_PRINT_STR("enter LinkablePass::canPull");
-        this->lockerLinkable.lock();
+        //this->lockerLinkable.lock();
         bool res=this->_canPull();
-        this->lockerLinkable.unlock();
+        //this->lockerLinkable.unlock();
         SCUD_PRINT_STR("exit LinkablePass::canPull");
         return res;
     }
-
+    
     };
 };
 
