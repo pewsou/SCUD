@@ -1416,7 +1416,7 @@ namespace SCUD{
         void resetPrioritySlot(char prio){
             if(prio<0 || prio>=SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES)
                 return;
-            this->lockerLinkable.lock();
+            //this->lockerLinkable.lock();
             prioritizedSources[prio]=0;
             if(currentMaxPriority==prio){
                 currentMaxPriority=-1;
@@ -1427,10 +1427,10 @@ namespace SCUD{
                     }
                 }
             }
-            this->lockerLinkable.unlock();
+            //this->lockerLinkable.unlock();
         }
         void resetPrioritySlotByLink(Linkable<TSchedulable, Tid>* link){
-            this->lockerLinkable.lock();
+            //this->lockerLinkable.lock();
             for(int i=0;i<SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES;++i)
             {
                 if(prioritizedSources[i]==link)
@@ -1439,7 +1439,7 @@ namespace SCUD{
                     break;
                 }
             }
-            this->lockerLinkable.unlock();
+            //this->lockerLinkable.unlock();
             
         }
         void resetPriorities(){
