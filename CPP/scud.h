@@ -1103,10 +1103,7 @@ namespace SCUD{
                 if(this->_scheduleEntry(linkId,link,w,pr)){
                     InternalContainer ic(link,w,pr);
                     id2prepended.insert(std::make_pair(linkId, ic));
-                    //link->_linkSuccessor(this);
                     this->_scheduleFinalizeEntry(linkId,link);
-                    //typename Linkable<TSchedulable, Tid>::SchedulingProperties scps(w,pr);
-                    //this->_propagateSchedulingProperties(this,scps);
                     SCUD_PRINT_STR("exit LinkableScheduler::linkPredecessor - OK");
                     res= SCUD_RC_OK;
                 }else{
@@ -1165,16 +1162,7 @@ namespace SCUD{
             ;
         };
         bool hasBefore(){
-            /*
-             SCUD_PRINT_STR("enter LinkableScheduler::hasBefore");
-             bool res=false;
-             this->lockerSched.lock();
-             if(this->id2prepended.size()>0){
-             res=true;
-             }
-             this->lockerSched.unlock();
-             SCUD_PRINT_STR("exit LinkableScheduler::hasBefore");
-             */
+
             return false;
         }
         SCUD_RC push(TSchedulable sch, long long schedulingParam){
@@ -1577,12 +1565,6 @@ namespace SCUD{
             skipEntry=0;
             
         };
-        //    SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
-        //        typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
-        //        uCI.ssciDRR.ignoreDrr=true;
-        //        SCUD_RC retcode= this->_pull(qu,uCI);
-        //        return retcode;
-        //    }
         
         SCUD_RC drop(){
             return SCUD_RC_OK;
@@ -1607,26 +1589,7 @@ namespace SCUD{
      */
     template<typename TSchedulable,typename Tid> class LinkablePass :public Linkable<TSchedulable,Tid>{
     protected:
-        /*SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, long drrQuantum,bool ignoreDefC){
-         SCUD_RC retcode=SCUD_RC_OK;
-         SCUD_PRINT_STR("enter LinkablePass::_pull");
-         this->lockerLinkable.lock();
-         Linkable<TSchedulable,Tid>* p=this->prev;
-         this->lockerLinkable.unlock();
-         if(p && _canPull())
-         {
-         SCUD_PRINT_STR("+LinkablePass::_pull");
-         typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
-         uCI.ssciDrr.ignoreDrr=true;
-         retcode=p->_pull(qu,drrQuantum,uCI);
-         SCUD_PRINT_STR("-LinkablePass::_pull");
-         }else{
-         retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
-         }
-         
-         SCUD_PRINT_STR("exit LinkableNull::_pull");
-         return retcode;
-         }*/
+
         SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
             SCUD_RC retcode=SCUD_RC_OK;
             SCUD_PRINT_STR("enter LinkablePass::_pull");
