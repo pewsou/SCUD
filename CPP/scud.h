@@ -20,14 +20,13 @@
  */
 #ifndef Scud_h
 #define Scud_h
-
 #include "deque"
 #include "map"
 #include <iostream>
 
 namespace SCUD{
     
-#define SCUD_VERSION "0.1.7"
+#define SCUD_VERSION "0.1.9"
     //#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
     //#define SCUD_DEBUG_MODE_ENABLED
@@ -458,9 +457,9 @@ namespace SCUD{
             lockerLinkable.unlock();
             return SCUD_RC_OK;
         };
-        double getWeight(){
+        float getWeight(){
             lockerLinkable.lock();
-            double weight=this->scp.weight;
+            float weight=this->scp.weight;
             lockerLinkable.unlock();
             return weight;
         };
@@ -766,17 +765,17 @@ namespace SCUD{
             
             return retcode;
         }
-        SCUD_RC setWeight(float w){
-            this->lockerLinkable.lock();
-            Linkable<TSchedulable, Tid>* n=this->next;
-            this->lockerLinkable.unlock();
-            
-            if(n!=0){
-                n->setWeight(w);
-            }
-            
-            return SCUD_RC_OK;
-        };
+        //        SCUD_RC setWeight(float w){
+        //            this->lockerLinkable.lock();
+        //            Linkable<TSchedulable, Tid>* n=this->next;
+        //            this->lockerLinkable.unlock();
+        //
+        //            if(n!=0){
+        //                n->setWeight(w);
+        //            }
+        //
+        //            return SCUD_RC_OK;
+        //        };
         virtual bool canPull(){
             this->lockerLinkable.lock();
             Linkable<TSchedulable,Tid>* p=this->prev;
@@ -846,18 +845,22 @@ namespace SCUD{
                         qu=temp;
                         this->queue.pop_back();
                         defcount=defcount-temp.schParam;
+                        if(qs==this->lowT)
+                        {
+                            if(n){
+                                n->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
+                            }
+                        }
                     }else{
                         defcount=defcount+ldc;
+                        if(n){
+                            n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
+                        }
                         retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
                     }
                     this->lockerLinkable.unlock();
                     
-                    if(qs-1<=this->lowT)
-                    {
-                        if(n){
-                            n->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
-                        }
-                    }
+                    
                 }
                 else{
                     this->lockerLinkable.unlock();
@@ -944,7 +947,7 @@ namespace SCUD{
                 q.schParam=schedulingParam;
                 this->queue.push_front(q);
                 this->lockerLinkable.unlock();
-                if(n && qs+1>lT && qs-lT<2){
+                if(n && qs==lT ){
                     n->_signalAvailability(true,qs+1,this->scp.weight,this->scp.priority);
                 }
                 this->processOnPush(sch, schedulingParam);
@@ -999,7 +1002,7 @@ namespace SCUD{
                 scps.priority=-1;
                 link=0;
             }
-            InternalContainer(Linkable<TSchedulable,Tid>* l, double weight, char priority){
+            InternalContainer(Linkable<TSchedulable,Tid>* l, float weight, char priority){
                 scps.weight=weight;
                 scps.priority=priority;
                 link=l;
@@ -1095,7 +1098,7 @@ namespace SCUD{
             Tid linkId=link->getId();
             it = id2prepended.find(linkId);
             if (it == id2prepended.end()){
-                double w=link->getWeight();
+                float w=link->getWeight();
                 char pr=link->getPriority();
                 if(this->_scheduleEntry(linkId,link,w,pr)){
                     InternalContainer ic(link,w,pr);
@@ -1268,12 +1271,6 @@ namespace SCUD{
             this->setId(this);
             this->rit=this->id2prepended.begin();
         };
-        //    SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
-        //        typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
-        //        uCI.ssciDRR.ignoreDrr=true;
-        //        SCUD_RC retcode= this->_pull(qu,uCI);
-        //        return retcode;
-        //    }
         bool canPull(){
             bool res=false;
             SCUD_PRINT_STR("enter LinkableSchedulerNaiveRR::canPull");
@@ -1408,7 +1405,6 @@ namespace SCUD{
      PRIORITY SCHEDULER
      
      -----------------------------------------------------------------------------
-     
      */
     template<typename TSchedulable,typename Tid> class  LinkableSchedulerPriority:public LinkableScheduler<TSchedulable,Tid>{
         
@@ -1524,11 +1520,11 @@ namespace SCUD{
         bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char p){
             //char p=link->getPriority();
             if(p<0){
-                SCUD_PRINT_STR("exit LinkableScheduler::_scheduleEntry - priority value less than zero; NOT scheduled");
+                SCUD_PRINT_STR("exit LinkableSchedulerPriority::_scheduleEntry - priority value less than zero; NOT scheduled");
                 return false;
             }
             if(prioritizedSources[p]){
-                SCUD_PRINT_STR("exit LinkableScheduler::_scheduleEntry - priority value used already; NOT scheduled");
+                SCUD_PRINT_STR("exit LinkableSchedulerPriority::_scheduleEntry - priority value used already; NOT scheduled");
                 return false;
             }
             prioritizedSources[p]=link;
@@ -1539,13 +1535,13 @@ namespace SCUD{
         }
         SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>* link,typename Linkable<TSchedulable,Tid>::SchedulingProperties scps){
             if(link==0){
-                SCUD_PRINT_STR("exit LinkableScheduler::_propagateSchedulingProperties - invalid param");
+                SCUD_PRINT_STR("exit LinkableSchedulerPriority::_propagateSchedulingProperties - invalid param");
                 return SCUD_RC_FAIL_INVALID_PARAM;
             }
             this->lockerLinkable.lock();
             if(prioritizedSources[scps.priority]!=0){
                 this->lockerLinkable.unlock();
-                SCUD_PRINT_STR("exit LinkableScheduler::_propagateSchedulingProperties - priority value used already");
+                SCUD_PRINT_STR("exit LinkableSchedulerPriority::_propagateSchedulingProperties - priority value used already");
                 return SCUD_RC_FAIL_INVALID_PRIORITY;
             }
             Tid linkId=link->getId();
@@ -1560,7 +1556,7 @@ namespace SCUD{
                 currentMaxPriority=scps.priority;
             }
             this->lockerLinkable.unlock();
-            SCUD_PRINT_STR("exit LinkableScheduler::_propagateSchedulingProperties");
+            SCUD_PRINT_STR("exit LinkableSchedulerPriority::_propagateSchedulingProperties");
             return SCUD_RC_OK;
         };
     public:
