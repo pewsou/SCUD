@@ -1236,6 +1236,7 @@ class SCHelper{
 
             this->lockerLinkable.lock();
             Tid linkId=link->getId();
+
             bool found;
             id2prepended.find(linkId,found);
             if (found == false){
