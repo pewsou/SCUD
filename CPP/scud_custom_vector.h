@@ -1,13 +1,11 @@
 //
-//  scud_custom.h
-//  test_SCUD
 //
 //  Created by Boris Vigman on 25/08/2017.
 //  Copyright © 2017 bv. All rights reserved.
 //
 
-#ifndef scud_custom_vector_h
-#define scud_custom_vector_h
+#ifndef scud_custom_queue_h
+#define scud_custom_queue_h
 /*
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU Affero General Public License as
@@ -23,14 +21,10 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef SCUD_CUSTOM_QUEUE_AVAILABLE
-template<typename T> class SCQueue{
+#ifdef SCUD_CUSTOM_VECTOR_AVAILABLE
+template<typename T> class SCVector{
 public:
-    void push_front(T& sch){}
-    void pop_back(){}
-    void back(T& sch){}
-    void empty(){}
-    long long size(){return -1;}
+    void push_back(T& el){};
 };
 #endif
 

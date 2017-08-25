@@ -26,11 +26,13 @@
 #define SCUD_VERSION "0.1.9"
 
 //#define SCUD_USE_EXCEPTIONS 1
-//#define SCUD_DEBUG_MODE_ENABLED
-//#define SCUD_CUSTOM_MUTEX_AVAILABLE
-//#define SCUD_CUSTOM_RNG_AVAILABLE
-//#define SCUD_CUSTOM_QUEUE_AVAILABLE
-//#define SCUD_CUSTOM_MAP_AVAILABLE
+//#define SCUD_DEBUG_MODE_ENABLED 1
+//#define SCUD_CUSTOM_MUTEX_AVAILABLE 1
+//#define SCUD_CUSTOM_RNG_AVAILABLE 1
+//#define SCUD_CUSTOM_QUEUE_AVAILABLE 1
+//#define SCUD_CUSTOM_MAP_AVAILABLE 1
+//#define SCUD_CUSTOM_VECTOR_AVAILABLE 1
+
 #define SCUD_IOSTREAM_AVAILABLE
 
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
@@ -48,6 +50,9 @@
 #endif
 #ifndef SCUD_CUSTOM_QUEUE_AVAILABLE
 #include "deque"
+#endif
+#ifndef SCUD_CUSTOM_VECTOR_AVAILABLE
+#include "vector"
 #endif
 
 namespace SCUD{
@@ -120,6 +125,17 @@ namespace SCUD{
         }
     } SchedulablePayload;
 
+#ifndef SCUD_CUSTOM_VECTOR_AVAILABLE
+    template<typename T> class SCVector{
+    public:
+        std::vector<T> itsvector;
+        void push_back(T& el){
+            itsvector.push_back(el);
+        }
+    };
+#else
+#include "scud_custom_vector.h"
+#endif
 #ifndef SCUD_CUSTOM_MAP_AVAILABLE
 template<typename Tid, typename Container> class SCMap{
         std::map<Tid,Container> itsmap;
@@ -415,7 +431,7 @@ class SCHelper{
         
     public:
         struct LinkedObjectsTuple {
-            std::vector<Linkable<TSchedulable,Tid>* > prevObject;
+            SCVector<Linkable<TSchedulable,Tid>* > prevObject;
             Linkable<TSchedulable,Tid>* thisObject;
             Linkable<TSchedulable,Tid>* nextObject;
             LinkedObjectsTuple(Linkable<TSchedulable,Tid>* p,Linkable<TSchedulable,Tid>* t,Linkable<TSchedulable,Tid>* n){
