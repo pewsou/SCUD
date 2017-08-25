@@ -32,11 +32,13 @@
 //#define SCUD_CUSTOM_VECTOR_AVAILABLE 1
 
 #define SCUD_IOSTREAM_AVAILABLE
-
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
-
 #define SCUD_DRR_QUANTUM 10
+#define SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT 8
 
+//-------------------------------------------------------
+//         PLEASE DO NOT EDIT BELOW THIS LINE
+//-------------------------------------------------------
 #ifdef SCUD_IOSTREAM_AVAILABLE
 #include <iostream>
 #endif
@@ -54,10 +56,7 @@
 #endif
 
 namespace SCUD{
-    //-------------------------------------------------------
-    //         PLEASE DO NOT EDIT BELOW THIS LINE
-    //-------------------------------------------------------
-#define SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT 8
+
 #ifdef SCUD_USE_EXCEPTIONS
 #define SCUD_THROW_EXCEPTION(x) throw (x)
 #else
