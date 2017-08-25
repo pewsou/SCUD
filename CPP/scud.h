@@ -20,20 +20,25 @@
  */
 #ifndef Scud_h
 #define Scud_h
-#include "deque"
+
 #include "map"
 #include <iostream>
 
-namespace SCUD{
-    
 #define SCUD_VERSION "0.1.9"
-    //#define SCUD_USE_EXCEPTIONS 1
+//#define SCUD_USE_EXCEPTIONS 1
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
-    //#define SCUD_DEBUG_MODE_ENABLED
-    //#define SCUD_CUSTOM_MUTEX_AVAILABLE
-    //#define SCUD_CUSTOM_RNG_AVAILABLE
-    //#define SCUD_CUSTOM_QUEUE_AVAILABLE
+
 #define SCUD_DRR_QUANTUM 10
+//#define SCUD_DEBUG_MODE_ENABLED
+//#define SCUD_CUSTOM_MUTEX_AVAILABLE
+//#define SCUD_CUSTOM_RNG_AVAILABLE
+#define SCUD_CUSTOM_QUEUE_AVAILABLE
+
+#ifndef SCUD_CUSTOM_QUEUE_AVAILABLE
+#include "deque"
+#endif
+
+namespace SCUD{
     //-------------------------------------------------------
     //         PLEASE DO NOT EDIT BELOW THIS LINE
     //-------------------------------------------------------
@@ -103,6 +108,36 @@ namespace SCUD{
         }
     } SchedulablePayload;
     
+#ifndef SCUD_CUSTOM_QUEUE_AVAILABLE
+    template<typename T> class SCQueue{
+        std::deque<T> deq;
+    public:
+        void push_front(T& sch){
+            deq.push_front(sch);
+        }
+        void pop_back(){
+            if(deq.size()>0){
+                deq.pop_back();
+            }
+        }
+        void back(T& sch){
+            if(deq.size()>0){
+                sch=deq.back();
+            }
+        }
+        void empty(){deq.clear();}
+        long long size(){return deq.size();}
+    };
+#else
+    template<typename T> class SCQueue{
+    public:
+        void push_front(T& sch){}
+        void pop_back(){}
+        void back(T& sch){}
+        void empty(){}
+        long long size(){return -1;}
+    };
+#endif
 #ifndef SCUD_CUSTOM_RNG_AVAILABLE
 #include <stdlib.h>
 #include <time.h>
@@ -133,6 +168,8 @@ namespace SCUD{
         virtual ~SCRng();
     };
 #endif
+    
+
 #ifndef SCUD_CUSTOM_MUTEX_AVAILABLE
 #include "mutex"
     class SCLocker{
@@ -206,20 +243,19 @@ namespace SCUD{
      
      */
     template<typename TSchedulable, typename Tid> class Linkable{
-    protected:
-#ifdef SCUD_DEBUG_MODE_ENABLED
-        std::string elementClass;
-#endif
-        long highT;
-        long lowT;
-        Tid itsId;
-        SCLocker lockerLinkable;
     public:
         struct Queueable{
             TSchedulable scheduled;
             long long schParam;
             Queueable(){schParam=-1;};
         };
+    protected:
+#ifdef SCUD_DEBUG_MODE_ENABLED
+        std::string elementClass;
+#endif
+        Tid itsId;
+        SCLocker lockerLinkable;
+        
     protected:
         struct SchedulingProperties{
             float weight;
@@ -314,7 +350,7 @@ namespace SCUD{
             };
         } ;
         
-        Linkable():lowT(0),highT(0),next(0),prev(0){
+        Linkable():next(0),prev(0){
             //objects.reserve(1024);
             scp.weight=0;
             scp.priority=-1;
@@ -323,7 +359,7 @@ namespace SCUD{
 #endif
         };
         //TODO: Consider Removal
-        Linkable(unsigned long initialObjCount):lowT(0),highT(0),next(0),prev(0){
+        Linkable(unsigned long initialObjCount):next(0),prev(0){
 #ifdef SCUD_DEBUG_MODE_ENABLED
             elementClass="Linkable";
 #endif
@@ -398,30 +434,7 @@ namespace SCUD{
             SCUD_PRINT_STR("exit Linkable::hasAfter");
             return res;
         }
-        SCUD_RC setHighThreshold(long high){
-            if(high<0)
-                return SCUD_RC_FAIL_INVALID_PARAM;
-            lockerLinkable.lock();
-            if(lowT>high && high>0){
-                lockerLinkable.unlock();
-                return SCUD_RC_FAIL_INVALID_PARAM;
-            }
-            highT=high;
-            lockerLinkable.unlock();
-            return SCUD_RC_OK;
-        };
-        SCUD_RC setLowThreshold(long low){
-            if(low<0)
-                return SCUD_RC_FAIL_INVALID_PARAM;
-            lockerLinkable.lock();
-            if(low>highT && highT>0){
-                lockerLinkable.unlock();
-                return SCUD_RC_FAIL_INVALID_PARAM;
-            }
-            lowT=low;
-            lockerLinkable.unlock();
-            return SCUD_RC_OK;
-        };
+        
         virtual SCUD_RC setWeight(float w){
             if(w<0){
                 SCUD_PRINT_STR("Linkable::setWeight - Attepmt of setting invalid weight:new weight is less than 0");
@@ -797,8 +810,11 @@ namespace SCUD{
      -------------------------------------------------------------------------
      */
     template<typename TSchedulable,typename Tid> class LinkableQueue :public Linkable<TSchedulable,Tid>{
-        std::deque<struct Linkable<TSchedulable,Tid>::Queueable> queue;
+        SCQueue<struct Linkable<TSchedulable,Tid>::Queueable> queue;
+        //std::deque<> queue;
     protected:
+        long highT;
+        long lowT;
         long long defcount;
         long long drrQuantum;
         bool isEligibleForDrr(long long objsize,bool ignoreDC){
@@ -817,7 +833,9 @@ namespace SCUD{
             SCUD_RC rc=SCUD_RC_OK;
             this->lockerLinkable.lock();
             if(queue.size()>this->lowT){
-                qu=this->queue.back();
+                
+                //qu=
+                this->queue.back(qu);
                 rc=SCUD_RC_OK;
             }else{
                 qu=temp;
@@ -839,7 +857,8 @@ namespace SCUD{
             {
                 if(this->lowT>=0 && qs>this->lowT)
                 {
-                    temp=this->queue.back();
+                    //temp=
+                    this->queue.back(temp);
                     bool dcc=isEligibleForDrr(temp.schParam, uCI.ssciDRR.ignoreDrr);
                     if(dcc){
                         qu=temp;
@@ -893,7 +912,7 @@ namespace SCUD{
             
         }
     public:
-        LinkableQueue(Tid tid){
+        LinkableQueue(Tid tid):lowT(0),highT(0){
 #ifdef SCUD_DEBUG_MODE_ENABLED
             this->elementClass="Queue";
 #endif
@@ -901,13 +920,37 @@ namespace SCUD{
             this->defcount=SCUD_DRR_QUANTUM;
             this->drrQuantum=SCUD_DRR_QUANTUM;
         };
-        LinkableQueue(){
+        LinkableQueue():lowT(0),highT(0){
 #ifdef SCUD_DEBUG_MODE_ENABLED
             this->elementClass="Queue";
 #endif
             this->setId(this);
             this->defcount=SCUD_DRR_QUANTUM;
             this->drrQuantum=SCUD_DRR_QUANTUM;
+        };
+        SCUD_RC setHighThreshold(long high){
+            if(high<0)
+                return SCUD_RC_FAIL_INVALID_PARAM;
+            this->lockerLinkable.lock();
+            if(lowT>high && high>0){
+                this->lockerLinkable.unlock();
+                return SCUD_RC_FAIL_INVALID_PARAM;
+            }
+            highT=high;
+            this->lockerLinkable.unlock();
+            return SCUD_RC_OK;
+        };
+        SCUD_RC setLowThreshold(long low){
+            if(low<0)
+                return SCUD_RC_FAIL_INVALID_PARAM;
+            this->lockerLinkable.lock();
+            if(low>highT && highT>0){
+                this->lockerLinkable.unlock();
+                return SCUD_RC_FAIL_INVALID_PARAM;
+            }
+            lowT=low;
+            this->lockerLinkable.unlock();
+            return SCUD_RC_OK;
         };
         SCUD_RC setDRRQuantum(long quantum){
             SCUD_PRINT_STR("enter LinkableQueue::setDRRQuantum ");

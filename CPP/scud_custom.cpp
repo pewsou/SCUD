@@ -42,6 +42,15 @@ void SCUD::SCLocker::lock(){};
 void SCUD::SCLocker::unlock(){};
 SCUD::SCLocker::~SCLocker(){};
 #endif
+#ifdef SCUD_CUSTOM_QUEUE_AVAILABLE
+template<typename T> class SCQueue{
+public:
+    void SCUD::SCQueue::push_front(T& sch);
+    void SCUD::SCQueue::pop_back();
+    void SCUD::SCQueue::back(T& sch);
+    void SCUD::SCQueue::empty();
+    long SCUD::SCQueue::long size();
+};
 #ifdef SCUD_CUSTOM_TIME_AVAILABLE
 SCUD::SCTime::SCTime(){
     
