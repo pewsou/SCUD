@@ -64,6 +64,7 @@ public:
         return false;
     }
     void promoteIterator(){}
+    void promoteIteratorSafely(){};
 };
 #endif
 

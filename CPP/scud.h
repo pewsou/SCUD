@@ -21,8 +21,6 @@
 #ifndef Scud_h
 #define Scud_h
 
-
-
 #define SCUD_VERSION "0.1.9"
 
 //#define SCUD_USE_EXCEPTIONS 1
@@ -147,15 +145,15 @@ template<typename Tid, typename Container> class SCMap{
         long long size(){return itsmap.size();};
         
         Container getCurrentContent(){
-            if(itsit==itsmap.end()){
-                itsit=itsmap.begin();
-            }
+            //if(itsit==itsmap.end()){
+            //    itsit=itsmap.begin();
+            //}
             return itsit->second;
         }
         Tid getCurrentId(){
-            if(itsit==itsmap.end()){
-                itsit=itsmap.begin();
-            }
+            //if(itsit==itsmap.end()){
+            //    itsit=itsmap.begin();
+            //}
             return itsit->first;
         }
         void setContent(Tid& t,Container& c){
@@ -201,6 +199,17 @@ template<typename Tid, typename Container> class SCMap{
                 ++itsit;
             }
         }
+    void promoteIteratorSafely(){
+        if(itsit==itsmap.end()){
+            itsit=itsmap.begin();
+        }
+        else{
+            ++itsit;
+        }
+        if(itsit==itsmap.end()){
+            itsit=itsmap.begin();
+        }
+    }
     };
 #else
 #include "scud_custom_map.h"
@@ -767,15 +776,25 @@ class SCHelper{
         float droppingProbability;
         SCRng rng;
     protected:
-        bool _shouldDrop(TSchedulable sch, long long schedulingParam){
+        bool _expectedToDrop(TSchedulable sch, long long schedulingParam){
             bool res=true;
+            this->lockerLinkable.lock();
+            if(randoms[currentRandom]>droppingProbability){
+                res=false;
+            }
+            this->lockerLinkable.unlock();
+            return res;
+        }
+        bool _shouldDrop(TSchedulable& sch, long long schedulingParam){
+            bool res=true;
+            float r=rng.randomFloat();
             this->lockerLinkable.lock();
             currentRandom=(currentRandom+1)%SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT ;
             if(randoms[currentRandom]>droppingProbability){
                 res=false;
             }
+            randoms[currentRandom]=r;
             this->lockerLinkable.unlock();
-            randoms[currentRandom]=rng.randomFloat();
             return res;
         }
         SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
@@ -792,9 +811,22 @@ class SCHelper{
             
             return retcode;
         }
-        void _signalAvailability(bool canPull,long long countAvailable,float weight,char priority){
-            
-        }
+        void _signalAvailability(bool canPull, long long countAvailable,float weight,char priority){
+            if(canPull){
+                this->lockerLinkable.lock();
+                Linkable<TSchedulable,Tid>* n=this->next;
+                this->lockerLinkable.unlock();
+                TSchedulable sch;
+                long long schedulingParam = 0;
+                if(n){
+                    if(expectedToDrop(sch, schedulingParam)){
+                        n->_signalAvailability(false, countAvailable,weight,priority);
+                    }
+                }
+            }else{
+                
+            }
+        };
         void initializeRandomSamples(){
             currentRandom=0;
             droppingProbability=-1;
@@ -893,8 +925,11 @@ class SCHelper{
             
             return rc;
         }
-        virtual bool shouldDrop(TSchedulable sch, long long schedulingParam){
+        virtual bool shouldDrop(TSchedulable& sch, long long schedulingParam){
             return _shouldDrop(sch, schedulingParam);
+        }
+        virtual bool expectedToDrop(TSchedulable& sch, long long schedulingParam){
+            return _expectedToDrop(sch, schedulingParam);
         }
     };
     /*
@@ -926,8 +961,7 @@ class SCHelper{
             SCUD_RC rc=SCUD_RC_OK;
             this->lockerLinkable.lock();
             if(queue.size()>this->lowT){
-                
-                //qu=
+
                 this->queue.back(qu);
                 rc=SCUD_RC_OK;
             }else{
@@ -945,7 +979,7 @@ class SCHelper{
             long long ldc=drrQuantum;
             long long qs=queue.size();
             Linkable<TSchedulable,Tid>* n=this->next;
-            
+
             if(qs>0)
             {
                 if(this->lowT>=0 && qs>this->lowT)
@@ -995,14 +1029,14 @@ class SCHelper{
             return retcode;
         }
         void _signalAvailability(bool canPull,long long countAvailable,float weight,char priority){
-            
+            /*
             this->lockerLinkable.lock();
             Linkable<TSchedulable,Tid>* n=this->next;
             this->lockerLinkable.unlock();
             if(n){
                 n->_signalAvailability(canPull, countAvailable,this->scp.weight,this->scp.priority);
             }
-            
+            */
         }
     public:
         LinkableQueue(Tid tid):lowT(0),highT(0){
@@ -1327,17 +1361,26 @@ class SCHelper{
      */
     template<typename TSchedulable,typename Tid> class  LinkableSchedulerNaiveRR:public LinkableScheduler<TSchedulable,Tid>{
     protected:
+        void _signalAvailability(bool canPull, long long countAvailable, float weight,char priority){
+            if(canPull){
+            }
+            else{
+                this->lockerLinkable.lock();
+                this->id2prepended.promoteIteratorSafely();
+                this->lockerLinkable.unlock();
+            }
+        }
         //typename std::map<Tid,typename LinkableScheduler<TSchedulable,Tid>::InternalContainer>::iterator rit;
         bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
-            
+            this->id2prepended.resetIterator();
             return true;
         };
         bool _scheduleFinalizeEntry(Tid linkId,Linkable<TSchedulable,Tid>* link){
-            //this->id2prepended.resetIterator();
+            this->id2prepended.resetIterator();
             return true;
         }
         void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
-            //this->id2prepended.resetIterator();
+            this->id2prepended.resetIterator();
             //this->rit=this->id2prepended.begin();
         }
         Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
@@ -1349,9 +1392,10 @@ class SCHelper{
                 return l;
             }
             if(entriesCount==1){
+                /*
                 if(this->id2prepended.isExgausted()){
                     l=0;
-                    this->id2prepended.resetIterator();
+                    this->id2prepended.promoteIterator();
                     this->lockerLinkable.unlock();
                     return l;
                 }
@@ -1359,6 +1403,17 @@ class SCHelper{
                 this->id2prepended.promoteIterator();
                 //++this->rit;
                 
+                if(l && l->canPull()){
+                    
+                }else{
+                    this->lockerLinkable.unlock();
+                    return 0;
+                }
+                 */
+                this->id2prepended.resetIterator();
+                //this->rit=this->id2prepended.begin();
+                l=this->id2prepended.getCurrentContent().link;
+                //l=this->rit->second.link;
                 if(l && l->canPull()){
                     
                 }else{
@@ -1375,7 +1430,7 @@ class SCHelper{
                     //}
                     l=this->id2prepended.getCurrentContent().link;
                     //++(this->rit);
-                    this->id2prepended.promoteIterator();
+                    this->id2prepended.promoteIteratorSafely();
                     ++count;
                     if(l && l->canPull())
                         break;
@@ -1397,7 +1452,7 @@ class SCHelper{
             this->elementClass="SchedulerNaiveRR";
 #endif
             this->setId(tid);
-            this->rit=this->id2prepended.begin();
+            this->id2prepended.resetIterator();
         };
         LinkableSchedulerNaiveRR(){
 #ifdef SCUD_DEBUG_MODE_ENABLED
@@ -1449,6 +1504,15 @@ class SCHelper{
             this->id2prepended.resetIterator();
             //this->rit=this->id2prepended.begin();
         }
+        void _signalAvailability(bool canPull, long long countAvailable,float weight,char priority){
+            if(canPull){
+                
+            }else{
+                this->lockerLinkable.lock();
+                this->id2prepended.promoteIteratorSafely();
+                this->lockerLinkable.unlock();
+            }
+        };
         Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
             Linkable<TSchedulable,Tid>* l=0;
             this->lockerLinkable.lock();
@@ -1485,7 +1549,7 @@ class SCHelper{
                         if(l->canPull()){
                             break;
                         }else{
-                            this->id2prepended.promoteIterator();
+                            this->id2prepended.promoteIteratorSafely();
                             ++count;
                         }
                         
@@ -1513,7 +1577,7 @@ class SCHelper{
             this->elementClass="SchedulerDeficitRR";
 #endif
             this->setId(tid);
-            this->rit=this->id2prepended.begin();
+            this->id2prepended.resetIterator();
             this->usci.ssciDRR.ignoreDrr=false;
         };
         LinkableSchedulerDRR(){
