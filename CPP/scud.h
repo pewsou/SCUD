@@ -1198,8 +1198,10 @@ class SCHelper{
         SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
             SCUD_RC retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
             bool objEnded=false;
+            long long count=0;
             while(retcode==SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE)
             {
+                ++count;
                 Linkable<TSchedulable,Tid>* link=this->calculateNextSource(objEnded);
                 if(link){
                     retcode=link->_pull(qu,this->usci);
@@ -1208,9 +1210,13 @@ class SCHelper{
                 }else{
                     break;
                 }
+                this->lockerLinkable.lock();
+                bool leave=count>this->id2prepended.size();
+                this->lockerLinkable.unlock();
+                if(leave)
+                    break;
                 objEnded=true;
             }
-            
             return retcode;
         }
         void _signalAvailability(bool canPull, long long countAvailable,float weight,char priority){
