@@ -21,19 +21,31 @@
 #ifndef Scud_h
 #define Scud_h
 
-#include "map"
-#include <iostream>
+
 
 #define SCUD_VERSION "0.1.9"
-//#define SCUD_USE_EXCEPTIONS 1
-#define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 
-#define SCUD_DRR_QUANTUM 10
+//#define SCUD_USE_EXCEPTIONS 1
 //#define SCUD_DEBUG_MODE_ENABLED
 //#define SCUD_CUSTOM_MUTEX_AVAILABLE
 //#define SCUD_CUSTOM_RNG_AVAILABLE
 //#define SCUD_CUSTOM_QUEUE_AVAILABLE
+//#define SCUD_CUSTOM_MAP_AVAILABLE
+#define SCUD_IOSTREAM_AVAILABLE
 
+#define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
+
+#define SCUD_DRR_QUANTUM 10
+
+#ifdef SCUD_IOSTREAM_AVAILABLE
+#include <iostream>
+#endif
+#ifndef SCUD_CUSTOM_MUTEX_AVAILABLE
+#include "mutex"
+#endif
+#ifndef SCUD_CUSTOM_MAP_AVAILABLE
+#include "map"
+#endif
 #ifndef SCUD_CUSTOM_QUEUE_AVAILABLE
 #include "deque"
 #endif
@@ -107,9 +119,79 @@ namespace SCUD{
             retCode=SCUD_RC_OK;
         }
     } SchedulablePayload;
-    
+
+#ifndef SCUD_CUSTOM_MAP_AVAILABLE
+template<typename Tid, typename Container> class SCMap{
+        std::map<Tid,Container> itsmap;
+        typename std::map<Tid,Container>::iterator itsit;
+    public:
+        SCMap(){
+            resetIterator();
+        }
+        long long size(){return itsmap.size();};
+        
+        Container getCurrentContent(){
+            if(itsit==itsmap.end()){
+                itsit=itsmap.begin();
+            }
+            return itsit->second;
+        }
+        Tid getCurrentId(){
+            if(itsit==itsmap.end()){
+                itsit=itsmap.begin();
+            }
+            return itsit->first;
+        }
+        void setContent(Tid& t,Container& c){
+            itsmap[t]=c;
+        }
+        void resetIterator(){
+            itsit=itsmap.begin();
+        };
+        void insert(Tid& tid,Container& c){
+            itsmap.insert(std::make_pair(tid, c));
+        };
+        void clear(){
+            itsmap.clear();itsit=itsmap.begin();
+        }
+        void erase(Tid& t){
+            itsmap.erase(t);
+        };
+        Container find(Tid& t,bool& res){
+            res=true;
+            typename std::map<Tid,Container>::iterator icit=itsmap.find(t);
+            if(icit==itsmap.end()){
+                res=false;
+                return icit->second;
+            }
+            Container c;
+            return c;
+        };
+        bool isExgausted(){
+            if(itsit==itsmap.end())
+                return true;
+            return false;
+        }
+        bool exists(Tid& id){
+            if(itsmap.find(id)==itsmap.end())
+                return false;
+            return true;
+        }
+        void promoteIterator(){
+            if(itsit==itsmap.end()){
+                itsit=itsmap.begin();
+            }
+            else{
+                ++itsit;
+            }
+        }
+    };
+#else
+#include "scud_custom_map.h"
+#endif
+
 #ifndef SCUD_CUSTOM_QUEUE_AVAILABLE
-    template<typename T> class SCQueue{
+template<typename T> class SCQueue{
         std::deque<T> deq;
     public:
         void push_front(T& sch){
@@ -135,7 +217,7 @@ namespace SCUD{
 #ifndef SCUD_CUSTOM_RNG_AVAILABLE
 #include <stdlib.h>
 #include <time.h>
-    class SCRng{
+class SCRng{
     public:
         SCRng(){
             srand ((unsigned int)time(NULL));
@@ -152,7 +234,7 @@ namespace SCUD{
         virtual ~SCRng(){};
     };
 #else
-    class SCRng{
+class SCRng{
     public:
         SCRng();
         //returns random number in range 0..RAND_MAX
@@ -162,10 +244,8 @@ namespace SCUD{
         virtual ~SCRng();
     };
 #endif
-    
 
 #ifndef SCUD_CUSTOM_MUTEX_AVAILABLE
-#include "mutex"
     class SCLocker{
         std::mutex mut;
     public:
@@ -187,12 +267,14 @@ namespace SCUD{
         virtual ~SCLocker();
     };
 #endif
-    class SCHelper{
+
+class SCHelper{
         static char itsVersion[];
     public:
         static char* version(){
             return itsVersion;
         }
+    #ifdef SCUD_IOSTREAM_AVAILABLE
         static std::string convertReturnCodeToString(SCUD_RC val){
             std::string result="Result: undefined";
             switch (val) {
@@ -219,6 +301,7 @@ namespace SCUD{
             }
             return result;
         }
+#endif
     };
     
     template<typename TSchedulable,typename Tid> class LinkableDropper ;
@@ -456,9 +539,9 @@ namespace SCUD{
             lockerLinkable.lock();
             this->scp.priority=prio;
             if(next){
-                typename Linkable<TSchedulable, Tid>::SchedulingProperties scps;
-                scps.weight=this->scp.weight;
-                scps.priority=this->scp.priority;
+                //typename Linkable<TSchedulable, Tid>::SchedulingProperties scps;
+                //scps.weight=this->scp.weight;
+                //scps.priority=this->scp.priority;
                 next->_propagateSchedulingProperties(this,this->scp);
             }
             lockerLinkable.unlock();
@@ -1045,7 +1128,7 @@ namespace SCUD{
                 link=l;
             }
         };
-        std::map<Tid,InternalContainer> id2prepended ;
+        SCMap<Tid,InternalContainer> id2prepended ;
         virtual Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded)=0;
         virtual void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority)=0;
         virtual bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority)=0;
@@ -1066,12 +1149,18 @@ namespace SCUD{
             this->prev=0;
             
             Tid linkId=link->getId();
-            typename std::map<Tid,InternalContainer>::iterator icit=id2prepended.find(linkId);
-            InternalContainer ic=icit->second;
-            id2prepended.erase(icit);
-            this->lockerLinkable.unlock();
-            this->_releaseScheduledEntry(linkId,link,ic.scps.weight,ic.scps.priority);
+           
+            //typename std::map<Tid,InternalContainer>::iterator icit=id2prepended.find(linkId);
             
+            InternalContainer ic;//=icit->second;
+            //id2prepended.erase(icit);
+            bool found;
+            ic=id2prepended.find(linkId,found);
+            id2prepended.erase(linkId);
+            this->lockerLinkable.unlock();
+            if(found){
+                this->_releaseScheduledEntry(linkId,link,ic.scps.weight,ic.scps.priority);
+            }
             SCUD_PRINT_STR("exit LinkableScheduler::_unlinkPredecessor");
             return SCUD_RC_OK;
         };
@@ -1130,16 +1219,17 @@ namespace SCUD{
             }
             SCUD_RC res=SCUD_RC_OK;
             
-            typename std::map<Tid,InternalContainer>::iterator it;
+            //typename std::map<Tid,InternalContainer>::iterator it;
             this->lockerLinkable.lock();
             Tid linkId=link->getId();
-            it = id2prepended.find(linkId);
-            if (it == id2prepended.end()){
+            bool found;
+            id2prepended.find(linkId,found);
+            if (found == false){
                 float w=link->getWeight();
                 char pr=link->getPriority();
                 if(this->_scheduleEntry(linkId,link,w,pr)){
                     InternalContainer ic(link,w,pr);
-                    id2prepended.insert(std::make_pair(linkId, ic));
+                    id2prepended.insert(linkId, ic);
                     this->_scheduleFinalizeEntry(linkId,link);
                     SCUD_PRINT_STR("exit LinkableScheduler::linkPredecessor - OK");
                     res= SCUD_RC_OK;
@@ -1180,10 +1270,12 @@ namespace SCUD{
             typename Linkable<TSchedulable,Tid>::LinkedObjectsTuple ptn(0,this,0);
             SCUD_PRINT_STR("enter LinkableScheduler::unlink");
             this->lockerLinkable.lock();
-            for (typename std::map<Tid,InternalContainer>::iterator it=id2prepended.begin(); it!=id2prepended.end(); ++it){
-                ptn.prevObject.push_back(it->second.link);
-                it->second.link->_unlinkSuccessor(this);
-                this->_releaseScheduledEntry(it->first,it->second.link,it->second.scps.weight,it->second.scps.priority);
+            for (id2prepended.resetIterator(); id2prepended.isExgausted()==false;id2prepended.promoteIterator() ){
+                InternalContainer ic=id2prepended.getCurrentContent();
+                Tid t=id2prepended.getCurrentId();
+                ptn.prevObject.push_back(ic.link);
+                ic.link->_unlinkSuccessor(this);
+                this->_releaseScheduledEntry(t,ic.link,ic.scps.weight,ic.scps.priority);
             }
             id2prepended.clear();
             ptn.nextObject=this->next;
@@ -1219,17 +1311,18 @@ namespace SCUD{
      */
     template<typename TSchedulable,typename Tid> class  LinkableSchedulerNaiveRR:public LinkableScheduler<TSchedulable,Tid>{
     protected:
-        typename std::map<Tid,typename LinkableScheduler<TSchedulable,Tid>::InternalContainer>::iterator rit;
+        //typename std::map<Tid,typename LinkableScheduler<TSchedulable,Tid>::InternalContainer>::iterator rit;
         bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
             
             return true;
         };
         bool _scheduleFinalizeEntry(Tid linkId,Linkable<TSchedulable,Tid>* link){
-            this->rit=this->id2prepended.begin();
+            //this->id2prepended.resetIterator();
             return true;
         }
         void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
-            this->rit=this->id2prepended.begin();
+            //this->id2prepended.resetIterator();
+            //this->rit=this->id2prepended.begin();
         }
         Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
             Linkable<TSchedulable,Tid>* l=0;
@@ -1240,15 +1333,15 @@ namespace SCUD{
                 return l;
             }
             if(entriesCount==1){
-                if(this->rit==this->id2prepended.end()){
+                if(this->id2prepended.isExgausted()){
                     l=0;
-                    this->rit=this->id2prepended.begin();
+                    this->id2prepended.resetIterator();
                     this->lockerLinkable.unlock();
                     return l;
                 }
-                l=this->rit->second.link;
-                
-                ++this->rit;
+                l=this->id2prepended.getCurrentContent().link;
+                this->id2prepended.promoteIterator();
+                //++this->rit;
                 
                 if(l && l->canPull()){
                     
@@ -1261,11 +1354,12 @@ namespace SCUD{
                 long long count=0;
                 while(1)
                 {
-                    if(this->rit==this->id2prepended.end()){
-                        this->rit=this->id2prepended.begin();
-                    }
-                    l=this->rit->second.link;
-                    ++(this->rit);
+                    //if(this->rit==this->id2prepended.end()){
+                    //    this->rit=this->id2prepended.begin();
+                    //}
+                    l=this->id2prepended.getCurrentContent().link;
+                    //++(this->rit);
+                    this->id2prepended.promoteIterator();
                     ++count;
                     if(l && l->canPull())
                         break;
@@ -1274,9 +1368,9 @@ namespace SCUD{
                         break;
                     }
                 }
-                if(this->rit==this->id2prepended.end()){
-                    this->rit=this->id2prepended.begin();
-                }
+                //if(this->rit==this->id2prepended.end()){
+                //    this->rit=this->id2prepended.begin();
+                //}
             }
             this->lockerLinkable.unlock();
             return l;
@@ -1294,7 +1388,8 @@ namespace SCUD{
             this->elementClass="SchedulerNaiveRR";
 #endif
             this->setId(this);
-            this->rit=this->id2prepended.begin();
+            //this->rit=this->id2prepended.begin();
+            this->id2prepended.resetIterator();
         };
         bool canPull(){
             bool res=false;
@@ -1324,17 +1419,19 @@ namespace SCUD{
      */
     template<typename TSchedulable,typename Tid> class  LinkableSchedulerDRR:public LinkableScheduler<TSchedulable,Tid>{
     protected:
-        typename std::map<Tid,typename LinkableScheduler<TSchedulable,Tid>::InternalContainer>::iterator rit;
+        //typename std::map<Tid,typename LinkableScheduler<TSchedulable,Tid>::InternalContainer>::iterator rit;
         bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
             
             return true;
         };
         bool _scheduleFinalizeEntry(Tid linkId,Linkable<TSchedulable,Tid>* link){
-            this->rit=this->id2prepended.begin();
+            //this->rit=this->id2prepended.begin();
+            this->id2prepended.resetIterator();
             return true;
         }
         void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
-            this->rit=this->id2prepended.begin();
+            this->id2prepended.resetIterator();
+            //this->rit=this->id2prepended.begin();
         }
         Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
             Linkable<TSchedulable,Tid>* l=0;
@@ -1346,8 +1443,10 @@ namespace SCUD{
             }
             if(entriesCount==1)
             {
-                this->rit=this->id2prepended.begin();
-                l=this->rit->second.link;
+                this->id2prepended.resetIterator();
+                //this->rit=this->id2prepended.begin();
+                l=this->id2prepended.getCurrentContent().link;
+                //l=this->rit->second.link;
                 if(l && l->canPull()){
                     
                 }else{
@@ -1360,16 +1459,17 @@ namespace SCUD{
                 long long count=0;
                 while(1)
                 {
-                    if(this->rit==this->id2prepended.end()){
-                        this->rit=this->id2prepended.begin();
-                    }
-                    l=this->rit->second.link;
+//                    if(this->rit==this->id2prepended.end()){
+//                        this->rit=this->id2prepended.begin();
+//                    }
+                    //this->id2prepended.promoteIterator();
+                    l=this->id2prepended.getCurrentContent().link;
                     
                     if(l){
                         if(l->canPull()){
                             break;
                         }else{
-                            ++(this->rit);
+                            this->id2prepended.promoteIterator();
                             ++count;
                         }
                         
@@ -1381,9 +1481,12 @@ namespace SCUD{
                         break;
                     }
                 }
+                /*
                 if(this->rit==this->id2prepended.end()){
                     this->rit=this->id2prepended.begin();
                 }
+                 */
+                //this->id2prepended.promoteIterator();
             }
             this->lockerLinkable.unlock();
             return l;
@@ -1402,7 +1505,8 @@ namespace SCUD{
             this->elementClass="SchedulerDeficitRR";
 #endif
             this->setId(this);
-            this->rit=this->id2prepended.begin();
+            this->id2prepended.resetIterator();
+            //this->rit=this->id2prepended.begin();
             this->usci.ssciDRR.ignoreDrr=false;
         };
         bool canPull(){
@@ -1570,19 +1674,26 @@ namespace SCUD{
                 return SCUD_RC_FAIL_INVALID_PRIORITY;
             }
             Tid linkId=link->getId();
-            struct LinkableScheduler<TSchedulable,Tid>::InternalContainer ic=this->id2prepended[linkId];
+            bool found;
+            SCUD_RC result=SCUD_RC_OK;
+            struct LinkableScheduler<TSchedulable,Tid>::InternalContainer ic=this->id2prepended.find(linkId,found);
             if(ic.scps.priority>-1){
                 prioritizedSources[ic.scps.priority]=0;
             }
-            ic.scps.priority=scps.priority;
-            prioritizedSources[scps.priority]=link;
-            this->id2prepended[linkId]=ic;
-            if(scps.priority>currentMaxPriority){
-                currentMaxPriority=scps.priority;
+            if(found==true){
+                ic.scps.priority=scps.priority;
+                ic.scps.weight=scps.weight;
+                ic.link=link;
+                prioritizedSources[scps.priority]=link;
+                this->id2prepended.setContent(linkId,ic);
+                if(scps.priority>currentMaxPriority){
+                    currentMaxPriority=scps.priority;
+                }
             }
             this->lockerLinkable.unlock();
+            result=SCUD_RC_FAIL_ILLEGAL_OP;;
             SCUD_PRINT_STR("exit LinkableSchedulerPriority::_propagateSchedulingProperties");
-            return SCUD_RC_OK;
+            return result;
         };
     public:
         LinkableSchedulerPriority(Tid tid){
