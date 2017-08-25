@@ -21,7 +21,7 @@
 #ifndef Scud_h
 #define Scud_h
 
-#define SCUD_VERSION "0.1.9"
+#define SCUD_VERSION "0.1.10"
 
 //#define SCUD_USE_EXCEPTIONS 1
 //#define SCUD_DEBUG_MODE_ENABLED 1
@@ -144,15 +144,9 @@ template<typename Tid, typename Container> class SCMap{
         long long size(){return itsmap.size();};
         
         Container getCurrentContent(){
-            //if(itsit==itsmap.end()){
-            //    itsit=itsmap.begin();
-            //}
             return itsit->second;
         }
         Tid getCurrentId(){
-            //if(itsit==itsmap.end()){
-            //    itsit=itsmap.begin();
-            //}
             return itsit->first;
         }
         void setContent(Tid& t,Container& c){
@@ -563,9 +557,6 @@ class SCHelper{
             lockerLinkable.lock();
             this->scp.priority=prio;
             if(next){
-                //typename Linkable<TSchedulable, Tid>::SchedulingProperties scps;
-                //scps.weight=this->scp.weight;
-                //scps.priority=this->scp.priority;
                 next->_propagateSchedulingProperties(this,this->scp);
             }
             lockerLinkable.unlock();
@@ -902,17 +893,6 @@ class SCHelper{
             
             return retcode;
         }
-        //        SCUD_RC setWeight(float w){
-        //            this->lockerLinkable.lock();
-        //            Linkable<TSchedulable, Tid>* n=this->next;
-        //            this->lockerLinkable.unlock();
-        //
-        //            if(n!=0){
-        //                n->setWeight(w);
-        //            }
-        //
-        //            return SCUD_RC_OK;
-        //        };
         virtual bool canPull(){
             this->lockerLinkable.lock();
             Linkable<TSchedulable,Tid>* p=this->prev;
@@ -983,7 +963,6 @@ class SCHelper{
             {
                 if(this->lowT>=0 && qs>this->lowT)
                 {
-                    //temp=
                     this->queue.back(temp);
                     bool dcc=isEligibleForDrr(temp.schParam, uCI.ssciDRR.ignoreDrr);
                     if(dcc){
@@ -1028,14 +1007,6 @@ class SCHelper{
             return retcode;
         }
         void _signalAvailability(bool canPull,long long countAvailable,float weight,char priority){
-            /*
-            this->lockerLinkable.lock();
-            Linkable<TSchedulable,Tid>* n=this->next;
-            this->lockerLinkable.unlock();
-            if(n){
-                n->_signalAvailability(canPull, countAvailable,this->scp.weight,this->scp.priority);
-            }
-            */
         }
     public:
         LinkableQueue(Tid tid):lowT(0),highT(0){
@@ -1120,9 +1091,7 @@ class SCHelper{
                     n->_signalAvailability(true,qs+1,this->scp.weight,this->scp.priority);
                 }
                 this->processOnPush(sch, schedulingParam);
-                //            else{
-                //                this->next->_signalAvailability(false,qs+1);
-                //            }
+
             }else if(qs>=hT){
                 this->lockerLinkable.unlock();
                 res=SCUD_RC_FAIL_LINK_ABOVE_HIGH_THRESHOLD;
@@ -1198,11 +1167,8 @@ class SCHelper{
             this->prev=0;
             
             Tid linkId=link->getId();
-           
-            //typename std::map<Tid,InternalContainer>::iterator icit=id2prepended.find(linkId);
-            
-            InternalContainer ic;//=icit->second;
-            //id2prepended.erase(icit);
+
+            InternalContainer ic;
             bool found;
             ic=id2prepended.find(linkId,found);
             id2prepended.erase(linkId);
@@ -1267,8 +1233,7 @@ class SCHelper{
                 return SCUD_RC_FAIL_LINK_HAS_SUCCESSOR;
             }
             SCUD_RC res=SCUD_RC_OK;
-            
-            //typename std::map<Tid,InternalContainer>::iterator it;
+
             this->lockerLinkable.lock();
             Tid linkId=link->getId();
             bool found;
@@ -1369,7 +1334,6 @@ class SCHelper{
                 this->lockerLinkable.unlock();
             }
         }
-        //typename std::map<Tid,typename LinkableScheduler<TSchedulable,Tid>::InternalContainer>::iterator rit;
         bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
             this->id2prepended.resetIterator();
             return true;
@@ -1380,7 +1344,6 @@ class SCHelper{
         }
         void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
             this->id2prepended.resetIterator();
-            //this->rit=this->id2prepended.begin();
         }
         Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
             Linkable<TSchedulable,Tid>* l=0;
@@ -1391,24 +1354,6 @@ class SCHelper{
                 return l;
             }
             if(entriesCount==1){
-                /*
-                if(this->id2prepended.isExgausted()){
-                    l=0;
-                    this->id2prepended.promoteIterator();
-                    this->lockerLinkable.unlock();
-                    return l;
-                }
-                l=this->id2prepended.getCurrentContent().link;
-                this->id2prepended.promoteIterator();
-                //++this->rit;
-                
-                if(l && l->canPull()){
-                    
-                }else{
-                    this->lockerLinkable.unlock();
-                    return 0;
-                }
-                 */
                 this->id2prepended.resetIterator();
                 //this->rit=this->id2prepended.begin();
                 l=this->id2prepended.getCurrentContent().link;
@@ -1424,11 +1369,7 @@ class SCHelper{
                 long long count=0;
                 while(1)
                 {
-                    //if(this->rit==this->id2prepended.end()){
-                    //    this->rit=this->id2prepended.begin();
-                    //}
                     l=this->id2prepended.getCurrentContent().link;
-                    //++(this->rit);
                     this->id2prepended.promoteIteratorSafely();
                     ++count;
                     if(l && l->canPull())
@@ -1438,9 +1379,6 @@ class SCHelper{
                         break;
                     }
                 }
-                //if(this->rit==this->id2prepended.end()){
-                //    this->rit=this->id2prepended.begin();
-                //}
             }
             this->lockerLinkable.unlock();
             return l;
@@ -1458,7 +1396,6 @@ class SCHelper{
             this->elementClass="SchedulerNaiveRR";
 #endif
             this->setId(this);
-            //this->rit=this->id2prepended.begin();
             this->id2prepended.resetIterator();
         };
         bool canPull(){
@@ -1489,19 +1426,16 @@ class SCHelper{
      */
     template<typename TSchedulable,typename Tid> class  LinkableSchedulerDRR:public LinkableScheduler<TSchedulable,Tid>{
     protected:
-        //typename std::map<Tid,typename LinkableScheduler<TSchedulable,Tid>::InternalContainer>::iterator rit;
         bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
             
             return true;
         };
         bool _scheduleFinalizeEntry(Tid linkId,Linkable<TSchedulable,Tid>* link){
-            //this->rit=this->id2prepended.begin();
             this->id2prepended.resetIterator();
             return true;
         }
         void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
             this->id2prepended.resetIterator();
-            //this->rit=this->id2prepended.begin();
         }
         void _signalAvailability(bool canPull, long long countAvailable,float weight,char priority){
             if(canPull){
@@ -1523,9 +1457,7 @@ class SCHelper{
             if(entriesCount==1)
             {
                 this->id2prepended.resetIterator();
-                //this->rit=this->id2prepended.begin();
                 l=this->id2prepended.getCurrentContent().link;
-                //l=this->rit->second.link;
                 if(l && l->canPull()){
                     
                 }else{
@@ -1538,10 +1470,6 @@ class SCHelper{
                 long long count=0;
                 while(1)
                 {
-//                    if(this->rit==this->id2prepended.end()){
-//                        this->rit=this->id2prepended.begin();
-//                    }
-                    //this->id2prepended.promoteIterator();
                     l=this->id2prepended.getCurrentContent().link;
                     
                     if(l){
@@ -1560,12 +1488,6 @@ class SCHelper{
                         break;
                     }
                 }
-                /*
-                if(this->rit==this->id2prepended.end()){
-                    this->rit=this->id2prepended.begin();
-                }
-                 */
-                //this->id2prepended.promoteIterator();
             }
             this->lockerLinkable.unlock();
             return l;
@@ -1585,7 +1507,6 @@ class SCHelper{
 #endif
             this->setId(this);
             this->id2prepended.resetIterator();
-            //this->rit=this->id2prepended.begin();
             this->usci.ssciDRR.ignoreDrr=false;
         };
         bool canPull(){
@@ -1594,11 +1515,7 @@ class SCHelper{
             this->lockerLinkable.lock();
             long long entriesCount=this->id2prepended.size();
             if(entriesCount>0){
-                //                Linkable<TSchedulable,Tid>* l=0;
-                //                l=this->rit->second.link;
-                //                if(l){
-                //                    res=l->canPull();
-                //                }
+
                 res=true;
             }else{
                 
