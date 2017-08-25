@@ -32,7 +32,7 @@
 //#define SCUD_DEBUG_MODE_ENABLED
 //#define SCUD_CUSTOM_MUTEX_AVAILABLE
 //#define SCUD_CUSTOM_RNG_AVAILABLE
-#define SCUD_CUSTOM_QUEUE_AVAILABLE
+//#define SCUD_CUSTOM_QUEUE_AVAILABLE
 
 #ifndef SCUD_CUSTOM_QUEUE_AVAILABLE
 #include "deque"
@@ -129,15 +129,9 @@ namespace SCUD{
         long long size(){return deq.size();}
     };
 #else
-    template<typename T> class SCQueue{
-    public:
-        void push_front(T& sch){}
-        void pop_back(){}
-        void back(T& sch){}
-        void empty(){}
-        long long size(){return -1;}
-    };
+#include "scud_custom_queue.h"
 #endif
+
 #ifndef SCUD_CUSTOM_RNG_AVAILABLE
 #include <stdlib.h>
 #include <time.h>
