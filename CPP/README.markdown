@@ -61,6 +61,7 @@ Any element has next methods:
 
 
 **Behavior**:
+
 Queues introduce additional methods:
 * _setDRRQuantum_ - sets quantum value for DRR algorithm. If provided value less than 1 - the default value is set.
 * _size()_ - returns number of elements in given queue
