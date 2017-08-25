@@ -1350,7 +1350,7 @@ class SCHelper{
             return true;
         }
         void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
-            this->id2prepended.resetIterator();
+            //this->id2prepended.resetIterator();
         }
         Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
             Linkable<TSchedulable,Tid>* l=0;
@@ -1442,7 +1442,7 @@ class SCHelper{
             return true;
         }
         void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
-            this->id2prepended.resetIterator();
+            //this->id2prepended.resetIterator();
         }
         void _signalAvailability(bool canPull, long long countAvailable,float weight,char priority){
             if(canPull){
