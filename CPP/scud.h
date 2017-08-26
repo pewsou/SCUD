@@ -30,6 +30,7 @@
 //#define SCUD_CUSTOM_QUEUE_AVAILABLE 1
 //#define SCUD_CUSTOM_MAP_AVAILABLE 1
 //#define SCUD_CUSTOM_VECTOR_AVAILABLE 1
+//#define SCUD_WFQ_AVAILABLE 1
 
 #define SCUD_IOSTREAM_AVAILABLE
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
@@ -1155,6 +1156,105 @@ class SCHelper{
         }
     };
     /*
+     -----------------------------------------------------------------------------
+     PASS-THROUGH LINKABLE OBJECT
+     
+     -----------------------------------------------------------------------------
+     
+     */
+    template<typename TSchedulable,typename Tid> class LinkablePass :public Linkable<TSchedulable,Tid>{
+    protected:
+        SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
+            SCUD_RC retcode=SCUD_RC_OK;
+            SCUD_PRINT_STR("enter LinkablePass::_pull");
+            this->lockerLinkable.lock();
+            Linkable<TSchedulable,Tid>* p=this->prev;
+            this->lockerLinkable.unlock();
+            if(p && _canPull())
+            {
+                SCUD_PRINT_STR("+LinkablePass::_pull");
+                retcode=p->_pull(qu,uCI);
+                SCUD_PRINT_STR("-LinkablePass::_pull");
+            }else{
+                retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
+            }
+            
+            SCUD_PRINT_STR("exit LinkablePass::_pull");
+            return retcode;
+        }
+        
+        void _signalAvailability(bool canPull, long long countAvailable, float weight,char priority){
+            SCUD_PRINT_STR("LinkablePass::_signalAvailability");
+            
+            this->lockerLinkable.lock();
+            Linkable<TSchedulable,Tid>* n=this->next;
+            this->lockerLinkable.unlock();
+            if(n){
+                n->_signalAvailability(canPull,countAvailable,weight,priority);
+            }
+        }
+        bool _canPull(){
+            bool res=false;
+            
+            SCUD_PRINT_STR("enter LinkablePass::_canPull");
+            this->lockerLinkable.lock();
+            Linkable<TSchedulable,Tid>* p=this->prev;
+            this->lockerLinkable.unlock();
+            if(p){
+                res= p->canPull();
+            }
+            SCUD_PRINT_STR("exit LinkablePass::_canPull");
+            return res;
+        }
+    public:
+        LinkablePass(Tid tid){
+#ifdef SCUD_DEBUG_MODE_ENABLED
+            this->elementClass="PassThrough";
+#endif
+            this->setId(tid);
+        };
+        LinkablePass(){
+#ifdef SCUD_DEBUG_MODE_ENABLED
+            this->elementClass="PassThrough";
+#endif
+            this->setId(this);
+        }
+        SCUD_RC push(TSchedulable sch, long long schedulingParam){
+            SCUD_RC retcode=SCUD_RC_OK;
+            this->lockerLinkable.lock();
+            Linkable<TSchedulable,Tid>* n=this->next;
+            this->lockerLinkable.unlock();
+            if(n){
+                this->processOnPush(sch, schedulingParam);
+                retcode=n->push(sch,schedulingParam);
+                
+            }else{
+                retcode=SCUD_RC_FAIL_LINK_NOT_EXISTS;
+            }
+            
+            return retcode;
+        }
+        SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+            SCUD_RC retcode=SCUD_RC_OK;
+            SCUD_PRINT_STR("enter LinkablePass::pull");
+            typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
+            uCI.ssciDRR.ignoreDrr=true;
+            retcode= this->_pull(qu,uCI);
+            this->processOnPull(qu.scheduled, qu.schParam);
+            SCUD_PRINT_STR("exit LinkablePass::pull");
+            return retcode;
+        }
+        bool canPull(){
+            SCUD_PRINT_STR("enter LinkablePass::canPull");
+            //this->lockerLinkable.lock();
+            bool res=this->_canPull();
+            //this->lockerLinkable.unlock();
+            SCUD_PRINT_STR("exit LinkablePass::canPull");
+            return res;
+        }
+        
+    };
+    /*
      ---------------------------------------------------------------------------------
      GENERIC SCHEDULER
      ---------------------------------------------------------------------------------
@@ -1816,104 +1916,100 @@ class SCHelper{
     
     /*
      -----------------------------------------------------------------------------
-     PASS-THROUGH LINKABLE OBJECT
+     Weighted Fair Queue
      
      -----------------------------------------------------------------------------
-     
      */
-    template<typename TSchedulable,typename Tid> class LinkablePass :public Linkable<TSchedulable,Tid>{
+#ifdef SCUD_WFQ_AVAILABLE
+    template<typename TSchedulable,typename Tid> class  LinkableSchedulerWFQ:public LinkableScheduler<TSchedulable,Tid>{
     protected:
-
-        SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
-            SCUD_RC retcode=SCUD_RC_OK;
-            SCUD_PRINT_STR("enter LinkablePass::_pull");
-            this->lockerLinkable.lock();
-            Linkable<TSchedulable,Tid>* p=this->prev;
-            this->lockerLinkable.unlock();
-            if(p && _canPull())
-            {
-                SCUD_PRINT_STR("+LinkablePass::_pull");
-                retcode=p->_pull(qu,uCI);
-                SCUD_PRINT_STR("-LinkablePass::_pull");
-            }else{
-                retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
-            }
-            
-            SCUD_PRINT_STR("exit LinkablePass::_pull");
-            return retcode;
-        }
-        
         void _signalAvailability(bool canPull, long long countAvailable, float weight,char priority){
-            SCUD_PRINT_STR("LinkablePass::_signalAvailability");
-            
-            this->lockerLinkable.lock();
-            Linkable<TSchedulable,Tid>* n=this->next;
-            this->lockerLinkable.unlock();
-            if(n){
-                n->_signalAvailability(canPull,countAvailable,weight,priority);
+            if(canPull){
+            }
+            else{
+                this->lockerLinkable.lock();
+                this->id2prepended.promoteIteratorSafely();
+                this->lockerLinkable.unlock();
             }
         }
-        bool _canPull(){
-            bool res=false;
-            
-            SCUD_PRINT_STR("enter LinkablePass::_canPull");
-            this->lockerLinkable.lock();
-            Linkable<TSchedulable,Tid>* p=this->prev;
-            this->lockerLinkable.unlock();
-            if(p){
-                res= p->canPull();
-            }
-            SCUD_PRINT_STR("exit LinkablePass::_canPull");
-            return res;
+        bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
+            this->id2prepended.resetIterator();
+            return true;
+        };
+        bool _scheduleFinalizeEntry(Tid linkId,Linkable<TSchedulable,Tid>* link){
+            this->id2prepended.resetIterator();
+            return true;
         }
+        void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
+
+        }
+        Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
+            Linkable<TSchedulable,Tid>* l=0;
+            this->lockerLinkable.lock();
+            long long entriesCount=this->id2prepended.size();
+            if(entriesCount==0){
+                this->lockerLinkable.unlock();
+                return l;
+            }
+            if(entriesCount==1){
+                this->id2prepended.resetIterator();
+                l=this->id2prepended.getCurrentContent().link;
+                if(l && l->canPull()){
+                    
+                }else{
+                    this->lockerLinkable.unlock();
+                    return 0;
+                }
+            }else
+            {
+                long long count=0;
+                while(1)
+                {
+                    l=this->id2prepended.getCurrentContent().link;
+                    this->id2prepended.promoteIteratorSafely();
+                    ++count;
+                    if(l && l->canPull())
+                        break;
+                    if(count>=entriesCount){
+                        l=0;
+                        break;
+                    }
+                }
+            }
+            this->lockerLinkable.unlock();
+            return l;
+        };
     public:
-        LinkablePass(Tid tid){
+        LinkableSchedulerWFQ(Tid tid){
 #ifdef SCUD_DEBUG_MODE_ENABLED
-            this->elementClass="PassThrough";
+            this->elementClass="SchedulerWeightedFairQueue";
 #endif
             this->setId(tid);
+            this->id2prepended.resetIterator();
         };
-        LinkablePass(){
+        LinkableSchedulerWFQ(){
 #ifdef SCUD_DEBUG_MODE_ENABLED
-            this->elementClass="PassThrough";
+            this->elementClass="SchedulerWeightedFairQueue";
 #endif
             this->setId(this);
-        }
-        SCUD_RC push(TSchedulable sch, long long schedulingParam){
-            SCUD_RC retcode=SCUD_RC_OK;
-            this->lockerLinkable.lock();
-            Linkable<TSchedulable,Tid>* n=this->next;
-            this->lockerLinkable.unlock();
-            if(n){
-                this->processOnPush(sch, schedulingParam);
-                retcode=n->push(sch,schedulingParam);
-                
-            }else{
-                retcode=SCUD_RC_FAIL_LINK_NOT_EXISTS;
-            }
-            
-            return retcode;
-        }
-        SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
-            SCUD_RC retcode=SCUD_RC_OK;
-            SCUD_PRINT_STR("enter LinkablePass::pull");
-            typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
-            uCI.ssciDRR.ignoreDrr=true;
-            retcode= this->_pull(qu,uCI);
-            this->processOnPull(qu.scheduled, qu.schParam);
-            SCUD_PRINT_STR("exit LinkablePass::pull");
-            return retcode;
-        }
+            this->id2prepended.resetIterator();
+        };
         bool canPull(){
-            SCUD_PRINT_STR("enter LinkablePass::canPull");
-            //this->lockerLinkable.lock();
-            bool res=this->_canPull();
-            //this->lockerLinkable.unlock();
-            SCUD_PRINT_STR("exit LinkablePass::canPull");
+            bool res=false;
+            SCUD_PRINT_STR("enter SchedulerWeightedFairQueue::canPull");
+            this->lockerLinkable.lock();
+            long long entriesCount=this->id2prepended.size();
+            if(entriesCount>0){
+                res=true;
+            }else{
+                
+            }
+            this->lockerLinkable.unlock();
+            SCUD_PRINT_STR("exit LinkableSchedulerWFQ::canPull");
             return res;
         }
-        
     };
+#endif /*SCUD_WFQ_AVAILABLE*/
 };
 
 #endif /* Scud_h */
