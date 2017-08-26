@@ -4,8 +4,8 @@
 //  Copyright © 2017 bv. All rights reserved.
 //
 
-#ifndef scud_custom_queue_h
-#define scud_custom_queue_h
+#ifndef scud_custom_vector_h
+#define scud_custom_vector_h
 /*
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU Affero General Public License as
