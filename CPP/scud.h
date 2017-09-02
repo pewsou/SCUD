@@ -129,6 +129,19 @@ namespace SCUD{
         void push_back(T& el){
             itsvector.push_back(el);
         }
+        T elementAt(long i){
+            if(i<0||i>=itsvector.size()){
+                T t;
+                return t;
+            }
+            return itsvector.at(i);
+        }
+        long size(){
+            return itsvector.size();
+        }
+        void clear(){
+            itsvector.clear();
+        }
     };
 #else
 #include "scud_custom_vector.h"
@@ -225,7 +238,7 @@ template<typename T> class SCQueue{
                 sch=deq.back();
             }
         }
-        void empty(){deq.clear();}
+        void clear(){deq.clear();}
         long long size(){return deq.size();}
     };
 #else
@@ -1102,7 +1115,7 @@ class SCHelper{
         }
         virtual SCUD_RC empty(){
             this->lockerLinkable.lock();
-            queue.empty();
+            queue.clear();
             this->lockerLinkable.unlock();
             return SCUD_RC_OK;
         };
