@@ -43,14 +43,17 @@ void SCUD::SCLocker::unlock(){};
 SCUD::SCLocker::~SCLocker(){};
 #endif
 
-#ifdef SCUD_CUSTOM_TIME_AVAILABLE
+#include <chrono>
 SCUD::SCTime::SCTime(){
     
 }
-long long SCUD::SCTime::getTime(){
-    return 0;
+SCUD::SCUDTimestamp SCUD::SCTime::getCurrentTime(){
+    auto start = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast< std::chrono::nanoseconds>
+    (std::chrono::steady_clock::now() - start);
+    return duration.count();
 }
 SCUD::SCTime::~SCTime(){
     
 }
-#endif
+

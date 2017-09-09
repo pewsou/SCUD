@@ -30,7 +30,8 @@
 //#define SCUD_CUSTOM_QUEUE_AVAILABLE 1
 //#define SCUD_CUSTOM_MAP_AVAILABLE 1
 //#define SCUD_CUSTOM_VECTOR_AVAILABLE 1
-//#define SCUD_WFQ_AVAILABLE 1
+//#define SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE 1
+#define SCUD_WFQ_AVAILABLE 1
 
 #define SCUD_IOSTREAM_AVAILABLE
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
@@ -54,6 +55,9 @@
 #endif
 #ifndef SCUD_CUSTOM_VECTOR_AVAILABLE
 #include "vector"
+#endif
+#ifndef SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE
+#include "queue"
 #endif
 
 namespace SCUD{
@@ -99,6 +103,7 @@ namespace SCUD{
         SCUD_RC_FAIL_OBJ_PROPAGATION_FAILED
     } SCUD_RC;
     
+    typedef double SCUDTimestamp;
     
     typedef struct _Prim{
         SCUD_RC retCode;
@@ -251,7 +256,40 @@ template<typename T> class SCQueue{
 #else
 #include "scud_custom_queue.h"
 #endif
-
+#ifndef SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE
+    template<typename T> class SCMinOrderedList{
+        std::priority_queue<T> mypq;
+    public:
+        
+        void push(T& element){
+            
+        }
+        T& top(){
+            
+        }
+        void pop(){
+            
+        }
+        long long size(){
+            
+        }
+        void clear(){
+            
+        }
+        
+    };
+#else
+    #include "scud_custom_minordered_list.h"
+#endif
+    
+class SCTime{
+public:
+    SCTime();
+    //long long getCurrentTime();
+    static SCUDTimestamp getCurrentTime();
+    ~SCTime();
+};
+    
 #ifndef SCUD_CUSTOM_RNG_AVAILABLE
 #include <stdlib.h>
 #include <time.h>
@@ -362,6 +400,9 @@ class SCHelper{
         struct Queueable{
             TSchedulable scheduled;
             long long schParam;
+#ifdef SCUD_WFQ_AVAILABLE
+            SCUDTimestamp timestamp;
+#endif
             Queueable(){schParam=-1;};
         };
     protected:
@@ -952,8 +993,8 @@ class SCHelper{
      */
     template<typename TSchedulable,typename Tid> class LinkableQueue :public Linkable<TSchedulable,Tid>{
         SCQueue<struct Linkable<TSchedulable,Tid>::Queueable> queue;
-        //std::deque<> queue;
     protected:
+
         long highT;
         long lowT;
         long long defcount;
@@ -974,7 +1015,6 @@ class SCHelper{
             SCUD_RC rc=SCUD_RC_OK;
             this->lockerLinkable.lock();
             if(queue.size()>this->lowT){
-
                 this->queue.back(qu);
                 rc=SCUD_RC_OK;
             }else{
@@ -1127,6 +1167,9 @@ class SCHelper{
             if(hT>0 && qs<hT){
                 struct Linkable<TSchedulable,Tid>::Queueable q;
                 q.scheduled=sch;
+#ifdef SCUD_WFQ_AVAILABLE
+                q.timestamp=SCTime::getCurrentTime();
+#endif
                 q.schParam=schedulingParam;
                 this->queue.push_front(q);
                 this->lockerLinkable.unlock();
@@ -1936,6 +1979,7 @@ class SCHelper{
 #ifdef SCUD_WFQ_AVAILABLE
     template<typename TSchedulable,typename Tid> class  LinkableSchedulerWFQ:public LinkableScheduler<TSchedulable,Tid>{
     protected:
+        long long linkRate;
         void _signalAvailability(bool canPull, long long countAvailable, float weight,char priority){
             if(canPull){
             }
@@ -1999,6 +2043,7 @@ class SCHelper{
 #endif
             this->setId(tid);
             this->id2prepended.resetIterator();
+            this->linkRate=1;
         };
         LinkableSchedulerWFQ(){
 #ifdef SCUD_DEBUG_MODE_ENABLED
@@ -2006,7 +2051,18 @@ class SCHelper{
 #endif
             this->setId(this);
             this->id2prepended.resetIterator();
+            this->linkRate=1;
         };
+        SCUD_RC setLinkRate(long long r){
+            if(r<1){
+                SCUD_PRINT_STR("leaving LinkableSchedulerWFQ::setLinkRate");
+                return SCUD_RC_FAIL_INVALID_PARAM;;
+            }
+            this->lockerLinkable.lock();
+            this->linkRate=r;
+            this->lockerLinkable.unlock();
+            return SCUD_RC_OK;
+        }
         bool canPull(){
             bool res=false;
             SCUD_PRINT_STR("enter SchedulerWeightedFairQueue::canPull");
