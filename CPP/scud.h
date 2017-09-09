@@ -481,6 +481,10 @@ class SCHelper{
             SCUD_PRINT_STR("exit Linkable::_linkSuccessor");
             return SCUD_RC_OK;
         };
+        virtual SCUD_RC _propagateWFQParams(Linkable<TSchedulable,Tid>* link,SCUDTimestamp virStart, double weight){
+            
+            return SCUD_RC_OK;
+        }
         virtual SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>*  link,SchedulingProperties scps){
             return SCUD_RC_OK;
         };
@@ -529,6 +533,7 @@ class SCHelper{
             prev=0;
             next=0;
             lockerLinkable.unlock();
+            
             SCUD_PRINT_STR("exit Linkable::~Linkable");
         };
         
@@ -560,7 +565,7 @@ class SCHelper{
                 
             }else{
                 SCUD_PRINT_STR("FAIL Linkable::pullAndPush");
-                retcode=SCUD_RC_FAIL_OBJ_PROPAGATION_FAILED;
+                //retcode=SCUD_RC_FAIL_OBJ_PROPAGATION_FAILED;
             }
             
             SCUD_PRINT_STR("exit Linkable::pullAndPush");
@@ -682,12 +687,11 @@ class SCHelper{
             if(link->hasBefore()){
                 SCUD_PRINT_STR("exit Linkable::linkSuccessor - has predecessor");
                 SCUD_THROW_EXCEPTION("exit Linkable::linkSuccessor - has predecessor");
-                return SCUD_RC_FAIL_LINK_HAS_PREDECESSOR;
+                return SCUD_RC_FAIL_LINK_HAS_SUCCESSOR;
             }
             if(hasAfter()){
                 SCUD_PRINT_STR(" Linkable::linkSuccessor - next is NOT empty");
             }else
-                //if(next==0)
             {
                 SCUD_RC rc=SCUD_RC_OK;
                 SCUD_PRINT_STR(" Linkable::linkSuccessor - next is empty");
@@ -722,9 +726,9 @@ class SCHelper{
                 return SCUD_RC_FAIL_INVALID_PARAM;
             }
             if(link->hasAfter()){
-                SCUD_PRINT_STR("exit Linkable::linkPredecessor - has sucessor");
-                SCUD_THROW_EXCEPTION("exit Linkable::linkPredecessor - has sucessor");
-                return SCUD_RC_FAIL_LINK_HAS_SUCCESSOR;
+                SCUD_PRINT_STR("exit Linkable::linkPredecessor - has successor");
+                SCUD_THROW_EXCEPTION("exit Linkable::linkPredecessor - has successor");
+                return SCUD_RC_FAIL_LINK_HAS_PREDECESSOR;
             }
             if(link->hasBefore()){
                 
@@ -812,9 +816,9 @@ class SCHelper{
         }
         bool canPull(){
             SCUD_PRINT_STR("enter LinkableNull::canPull");
-            this->lockerLinkable.lock();
+            //this->lockerLinkable.lock();
             bool res=this->_canPull();
-            this->lockerLinkable.unlock();
+            //this->lockerLinkable.unlock();
             SCUD_PRINT_STR("exit LinkableNull::canPull");
             return res;
         }
@@ -1037,7 +1041,6 @@ class SCHelper{
             {
                 if(this->lowT>=0 && qs>this->lowT)
                 {
-                    //temp=
                     this->queue.back(temp);
                     bool dcc=isEligibleForDrr(temp.schParam, uCI.ssciDRR.ignoreDrr);
                     if(dcc){
@@ -1082,14 +1085,6 @@ class SCHelper{
             return retcode;
         }
         void _signalAvailability(bool canPull,long long countAvailable,float weight,char priority){
-            /*
-            this->lockerLinkable.lock();
-            Linkable<TSchedulable,Tid>* n=this->next;
-            this->lockerLinkable.unlock();
-            if(n){
-                n->_signalAvailability(canPull, countAvailable,this->scp.weight,this->scp.priority);
-            }
-            */
         }
     public:
         LinkableQueue(Tid tid):lowT(0),highT(0){
@@ -1335,7 +1330,7 @@ class SCHelper{
         };
         SCMap<Tid,InternalContainer> id2prepended ;
         virtual Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded)=0;
-        virtual void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority)=0;
+        virtual void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){};
         virtual bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority)=0;
         virtual bool _scheduleFinalizeEntry(Tid linkId,Linkable<TSchedulable,Tid>* link)=0;
         SCUD_RC _unlinkPredecessor(Linkable<TSchedulable,Tid>*  link){
@@ -1457,15 +1452,18 @@ class SCHelper{
             this->lockerLinkable.unlock();
             return res;
         };
-        
-    public:
-        ~LinkableScheduler(){};
+        virtual ~LinkableScheduler(){
+            SCUD_RC rc=SCUD_RC_OK;
+            //typename Linkable<TSchedulable,Tid>::LinkedObjectsTuple lot=this->unlink(&rc);
+        };
         LinkableScheduler(){
 #ifdef SCUD_DEBUG_MODE_ENABLED
             this->elementClass="GenericScheduler";
 #endif
             usci.ssciDRR.ignoreDrr=true;
         };
+    public:
+        
         SCUD_RC pull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
             SCUD_RC retcode=this->_pull(qu,this->usci);
             this->processOnPull(qu.scheduled, qu.schParam);
@@ -1903,6 +1901,10 @@ class SCHelper{
                 currentMaxPriority=p;
             }
             return true;
+        }
+        SCUD_RC _propagateWFQParams(Linkable<TSchedulable,Tid>* link,SCUDTimestamp virStart, double weight){
+            
+            return SCUD_RC_OK;
         }
         SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>* link,typename Linkable<TSchedulable,Tid>::SchedulingProperties scps){
             if(link==0){
