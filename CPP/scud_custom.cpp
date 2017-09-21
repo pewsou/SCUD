@@ -43,19 +43,3 @@ void SCUD::SCLocker::unlock(){};
 SCUD::SCLocker::~SCLocker(){};
 #endif
 
-#include <chrono>
-SCUD::SCTime::SCTime(){
-    
-}
-SCUD::SCUDTimestamp SCUD::SCTime::getCurrentTime(){
-    //std::chrono::nanoseconds ns = ;
-//    auto start = std::chrono::high_resolution_clock::now();
-//    auto duration = std::chrono::duration_cast< std::chrono::nanoseconds>
-//    (std::chrono::steady_clock::now() - start);
-    //return duration.count();
-    return std::chrono::duration_cast< std::chrono::microseconds >(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-}
-SCUD::SCTime::~SCTime(){
-    
-}
-

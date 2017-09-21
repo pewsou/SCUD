@@ -21,7 +21,7 @@
 #ifndef Scud_h
 #define Scud_h
 
-#define SCUD_VERSION "0.1.9"
+#define SCUD_VERSION "0.1.11"
 
 //#define SCUD_USE_EXCEPTIONS 1
 //#define SCUD_DEBUG_MODE_ENABLED 1
@@ -31,7 +31,7 @@
 //#define SCUD_CUSTOM_MAP_AVAILABLE 1
 //#define SCUD_CUSTOM_VECTOR_AVAILABLE 1
 //#define SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE 1
-#define SCUD_WFQ_AVAILABLE 1
+//#define SCUD_WFQ_AVAILABLE 1
 
 #define SCUD_IOSTREAM_AVAILABLE
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
@@ -112,9 +112,9 @@ namespace SCUD{
         SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE,
         SCUD_RC_FAIL_OBJ_PROPAGATION_FAILED
     } SCUD_RC;
-    
+#ifdef SCUD_WFQ_AVAILABLE
     typedef long long SCUDTimestamp;
-    
+#endif
     typedef struct _Prim{
         SCUD_RC retCode;
         
@@ -266,45 +266,6 @@ template<typename T> class SCQueue{
 #else
 #include "scud_custom_queue.h"
 #endif
-#ifndef SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE
-    template<typename Tid,typename T1, typename T2, typename T3> class SCMinOrderedList{
-        std::priority_queue<T1,T2,T3> mypq;
-        std::unordered_map<Tid, char> uniqueItems;
-    public:
-        void push(Tid itsId,T1& element){
-            typename std::unordered_map<Tid,char>::const_iterator it = uniqueItems.find (itsId);
-            if(it==uniqueItems.end()){
-                mypq.push(element);
-                uniqueItems[itsId]=0;
-            }
-        }
-        T1 top(){
-            return mypq.top();
-        }
-        void pop(Tid itsId){
-            mypq.pop();
-            uniqueItems.erase(itsId);
-        }
-        long long size(){
-            return mypq.size();
-        }
-        void clear(){
-            mypq.clear();
-            uniqueItems.clear();
-        }
-        
-    };
-#else
-    #include "scud_custom_minordered_list.h"
-#endif
-    
-class SCTime{
-public:
-    SCTime();
-    //long long getCurrentTime();
-    static SCUDTimestamp getCurrentTime();
-    ~SCTime();
-};
     
 #ifndef SCUD_CUSTOM_RNG_AVAILABLE
 #include <stdlib.h>
@@ -1313,7 +1274,7 @@ public:
                 struct Linkable<TSchedulable,Tid>::Queueable q;
                 q.scheduled=sch;
 #ifdef SCUD_WFQ_AVAILABLE
-                q.timestamp=SCHelper::newCount();//SCTime::getCurrentTime();
+                q.timestamp=SCHelper::newCount();
                 q.weight=this->scp.weight;
                 q.prevWeight=this->scp.prevWeight;
 #endif
@@ -1329,10 +1290,7 @@ public:
 #endif
                 }
                 this->processOnPush(sch, schedulingParam);
-                //            else{
-                //                this->next->_signalAvailability(false,qs+1);
-                //            }
-            }else 
+            }else
             {
                 this->lockerLinkable.unlock();
                 res=SCUD_RC_FAIL_LINK_ABOVE_HIGH_THRESHOLD;
@@ -2291,8 +2249,6 @@ public:
                 }
                 this->id2prepended.resetIterator();
                 double finish=std::numeric_limits<float>::max();
-                float selweight=0;
-                //std::cout<<"INSIDE WFQ -- "<<std::endl;
                 while(this->id2prepended.isExgausted()==false)
                 {
                     
@@ -2308,53 +2264,8 @@ public:
                     if(fin<finish){
                         finish=fin;
                         l1=l;
-                        selweight=pp.weight;
                     }
-                    std::cout.precision(20);
-                    std::cout<<"candidate weight "<<pp.weight<<", start "<<pp.timestamp<<", finish "<<fin<<" diff "<<fin-pp.timestamp<<std::endl;
-                    int x=0;
-                    /*
-                    //std::cout<<"***"<<std::endl;
-                    --linksToPreload;
-                    --listsize;
-                    if(listsize==0){
-                        l=0;
-                        break;
-                    }
-                    this->id2prepended.promoteIterator();
-                    l=this->id2prepended.getCurrentContent().link;
-                    struct Linkable<TSchedulable,Tid>::Queueable pp;
-                    l->_simulatePull(pp);
-                    
-                    if(pp.weight<SCUD_WFQ_MIN_POSSIBLE_WEIGHT || pp.schParam<1)
-                        continue;
-                    
-                    struct _WFQOrderingTuple ordTuple;
-                    ordTuple.link=l;
-                    //double frac=pp.schParam/(pp.weight*this->linkShare);
-                    ordTuple.virFinish=pp.timestamp+(float)pp.schParam/(pp.weight*this->linkShare);
-                    //ordTuple.virFinish*=-1;
-                    minord.push(ordTuple.link->getId(),ordTuple);
-                    */
-                    //if(l && l->canPull())
-                    //    break;
-                    
                 }
-                std::cout<<"selected "<<selweight<<std::endl;
-                /*
-                linksToPreload=1;
-                long s=minord.size();
-                if(s>0){
-                    if(s<this->id2prepended.size()){
-                        linksToPreload=SCUD_WFQ_LINK_POLLING_BATCH_SIZE;
-                    }
-                    struct _WFQOrderingTuple ordTuple1=minord.top();
-                    minord.pop(ordTuple1.link->getId());
-                    l= ordTuple1.link;
-                }else{
-                    l=0;
-                }
-                 */
             }
             this->lockerLinkable.unlock();
             return l1;
