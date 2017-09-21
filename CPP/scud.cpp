@@ -21,3 +21,4 @@
 
 #include "scud.h"
 char SCUD::SCHelper::itsVersion[]=SCUD_VERSION;
+long long SCUD::SCHelper::llcount=0;

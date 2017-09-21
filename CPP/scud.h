@@ -37,11 +37,15 @@
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 #define SCUD_DRR_QUANTUM 10
 #define SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT 8
+#define SCUD_QUEUE_DEFAULT_LOW_THRESHOLD 0
+#define SCUD_QUEUE_DEFAULT_HIGH_THRESHOLD 100
+
+#ifdef SCUD_WFQ_AVAILABLE
 #define SCUD_WFQ_LOAD_AT_ONCE_LINKS_NUM 100
 #define SCUD_WFQ_MIN_POSSIBLE_WEIGHT 0.0000000000001
 #define SCUD_WFQ_LINK_POLLING_BATCH_SIZE 100
-#define SCUD_QUEUE_DEFAULT_LOW_THRESHOLD 0
-#define SCUD_QUEUE_DEFAULT_HIGH_THRESHOLD 100
+#endif
+
 //-------------------------------------------------------
 //         PLEASE DO NOT EDIT BELOW THIS LINE
 //-------------------------------------------------------
@@ -109,7 +113,7 @@ namespace SCUD{
         SCUD_RC_FAIL_OBJ_PROPAGATION_FAILED
     } SCUD_RC;
     
-    typedef double SCUDTimestamp;
+    typedef long long SCUDTimestamp;
     
     typedef struct _Prim{
         SCUD_RC retCode;
@@ -357,9 +361,11 @@ class SCRng{
 #endif
 
 class SCHelper{
-        static char itsVersion[];
+    static char itsVersion[];
+    static long long llcount;
 public:
-     static char* version(){
+    static long long newCount(){return ++llcount;};
+    static char* version(){
          return itsVersion;
      };
 #ifdef SCUD_IOSTREAM_AVAILABLE
@@ -548,9 +554,10 @@ public:
         };
     protected:
         Linkable():next(0),prev(0){
-            //objects.reserve(1024);
+#ifdef SCUD_WFQ_AVAILABLE
             scp.weight=SCUD_WFQ_MIN_POSSIBLE_WEIGHT;
             scp.prevWeight=SCUD_WFQ_MIN_POSSIBLE_WEIGHT;
+#endif
             scp.priority=-1;
 #ifdef SCUD_DEBUG_MODE_ENABLED
             elementClass="Linkable";
@@ -651,20 +658,21 @@ public:
         }
         
         virtual SCUD_RC setWeight(float w){
+#ifdef SCUD_WFQ_AVAILABLE
             if(w<SCUD_WFQ_MIN_POSSIBLE_WEIGHT){
                 SCUD_PRINT_STR("Linkable::setWeight - Attepmt of setting invalid weight:new weight is less than 0");
                 return SCUD_RC_FAIL_INVALID_WEIGHT;
             }
             lockerLinkable.lock();
             if(next){
-#ifdef SCUD_WFQ_AVAILABLE
+
                 scp.prevWeight=scp.weight;
                 scp.weight=w;
-#endif
                 scp.priority=this->scp.priority;
                 next->_propagateSchedulingProperties(this,this->scp);
             }
             lockerLinkable.unlock();
+#endif
             return SCUD_RC_OK;
         };
         virtual SCUD_RC setPriority( char prio){
@@ -1151,13 +1159,18 @@ public:
                         defcount=defcount-temp.schParam;
                         if(qs==this->lowT+1)
                         {
+                            nextSchParam=-1;
 #ifdef SCUD_WFQ_AVAILABLE
                             nextTimestamp=-1;
-#endif
-                            nextSchParam=-1;
                             if(n){
                                 n->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
                             }
+#else
+                            if(n){
+                                n->_signalAvailability(false,qs-1,-1,this->scp.priority);
+                            }
+#endif
+                            
                         }else{
                             this->queue.back(temp);
 #ifdef SCUD_WFQ_AVAILABLE
@@ -1234,7 +1247,9 @@ public:
             this->setId(this);
             this->defcount=SCUD_DRR_QUANTUM;
             this->drrQuantum=SCUD_DRR_QUANTUM;
+#ifdef SCUD_WFQ_AVAILABLE
             this->nextTimestamp=0;
+#endif
             this->nextSchParam=-1;
         };
         SCUD_RC setHighThreshold(long high){
@@ -1298,7 +1313,7 @@ public:
                 struct Linkable<TSchedulable,Tid>::Queueable q;
                 q.scheduled=sch;
 #ifdef SCUD_WFQ_AVAILABLE
-                q.timestamp=SCTime::getCurrentTime();
+                q.timestamp=SCHelper::newCount();//SCTime::getCurrentTime();
                 q.weight=this->scp.weight;
                 q.prevWeight=this->scp.prevWeight;
 #endif
@@ -2276,7 +2291,7 @@ public:
                 }
                 this->id2prepended.resetIterator();
                 double finish=std::numeric_limits<float>::max();
-                
+                float selweight=0;
                 //std::cout<<"INSIDE WFQ -- "<<std::endl;
                 while(this->id2prepended.isExgausted()==false)
                 {
@@ -2288,12 +2303,16 @@ public:
                     if(pp.schParam<1)
                         continue;
                     float w=(pp.weight*this->linkShare);
-                    double fin=pp.timestamp+((float)pp.schParam/w);
+                    float sw=(double)pp.schParam/w;
+                    double fin=(double)pp.timestamp+sw;
                     if(fin<finish){
                         finish=fin;
                         l1=l;
+                        selweight=pp.weight;
                     }
-                    
+                    std::cout.precision(20);
+                    std::cout<<"candidate weight "<<pp.weight<<", start "<<pp.timestamp<<", finish "<<fin<<" diff "<<fin-pp.timestamp<<std::endl;
+                    int x=0;
                     /*
                     //std::cout<<"***"<<std::endl;
                     --linksToPreload;
@@ -2321,6 +2340,7 @@ public:
                     //    break;
                     
                 }
+                std::cout<<"selected "<<selweight<<std::endl;
                 /*
                 linksToPreload=1;
                 long s=minord.size();
@@ -2370,7 +2390,7 @@ public:
 #endif
             this->setId(this);
             this->id2prepended.resetIterator();
-            this->linkRate=1000000;
+            this->linkRate=20000;
             this->sumWeight=0;
             linksToPreload=SCUD_WFQ_LINK_POLLING_BATCH_SIZE;
         };
