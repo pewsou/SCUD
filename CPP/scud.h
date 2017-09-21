@@ -112,9 +112,9 @@ namespace SCUD{
         SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE,
         SCUD_RC_FAIL_OBJ_PROPAGATION_FAILED
     } SCUD_RC;
-    
+#ifdef SCUD_WFQ_AVAILABLE
     typedef long long SCUDTimestamp;
-    
+#endif
     typedef struct _Prim{
         SCUD_RC retCode;
         
@@ -297,7 +297,8 @@ template<typename T> class SCQueue{
 #else
     #include "scud_custom_minordered_list.h"
 #endif
-    
+  
+#ifdef SCUD_WFQ_AVAILABLE
 class SCTime{
 public:
     SCTime();
@@ -305,6 +306,7 @@ public:
     static SCUDTimestamp getCurrentTime();
     ~SCTime();
 };
+#endif
     
 #ifndef SCUD_CUSTOM_RNG_AVAILABLE
 #include <stdlib.h>
