@@ -1,6 +1,4 @@
 //
-//  test_SCUD
-//
 //  Created by Boris Vigman on 25/08/2017.
 //  Copyright © 2017 Boris Vigman. All rights reserved.
 //
@@ -28,42 +26,54 @@ public:
     SCMap(){
         
     }
+    //get current size
     long long size(){return 0;};
-    
+    //get content referenced by iterator
     Container getCurrentContent(){
         Container c;
         return c;
     }
+    //get ID of item referenced by iterator
     Tid getCurrentId(){
         Tid t;
         return t;
     }
+    //set new content for item with given ID
     void setContent(Tid& t,Container& c){
 
     }
+    //reset iterator making int point to the beginning
     void resetIterator(){
 
     };
+    //insert new item
     void insert(Tid& tid,Container& c){
 
     };
+    //clear the map
     void clear(){
 
     }
+    //erase item with given ID
     void erase(Tid& t){
 
     };
+    //find item with given ID; return status of search and item;
     Container find(Tid& t,bool& res){
         Container c;
         return c;
     };
+    //if iterator visited all items of map return true, otherwise false
     bool isExgausted(){
         return true;
     }
+    //return true if item with given ID exists, false otherwise
     bool exists(Tid& id){
         return false;
     }
+    //promote iterator
     void promoteIterator(){}
+    //promotoe iterator with guarantee that it references valid object for non-empty map
     void promoteIteratorSafely(){};
 };
 #endif

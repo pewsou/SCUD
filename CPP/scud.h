@@ -37,7 +37,11 @@
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
 #define SCUD_DRR_QUANTUM 10
 #define SCUD_DROPPER_RANDOM_NUMBERS_AMOUNT 8
-
+#define SCUD_WFQ_LOAD_AT_ONCE_LINKS_NUM 100
+#define SCUD_WFQ_MIN_POSSIBLE_WEIGHT 0.0000000000001
+#define SCUD_WFQ_LINK_POLLING_BATCH_SIZE 100
+#define SCUD_QUEUE_DEFAULT_LOW_THRESHOLD 0
+#define SCUD_QUEUE_DEFAULT_HIGH_THRESHOLD 100
 //-------------------------------------------------------
 //         PLEASE DO NOT EDIT BELOW THIS LINE
 //-------------------------------------------------------
@@ -48,7 +52,7 @@
 #include "mutex"
 #endif
 #ifndef SCUD_CUSTOM_MAP_AVAILABLE
-#include "map"
+#include "unordered_map"
 #endif
 #ifndef SCUD_CUSTOM_QUEUE_AVAILABLE
 #include "deque"
@@ -60,28 +64,30 @@
 #include "queue"
 #endif
 
-namespace SCUD{
-
 #ifdef SCUD_USE_EXCEPTIONS
 #define SCUD_THROW_EXCEPTION(x) throw (x)
 #else
 #define SCUD_THROW_EXCEPTION(x)
 #endif
-    
+
 #ifdef SCUD_DEBUG_MODE_ENABLED
 #include <string>
-    
+
 #define SCUD_PRINT_STR(x) {std::string s=(x);std::cout<<s<<std::endl;}
 #define SCUD_PRINT_STR_WITH_PARAM(x,param) {std::string s=(x);std::cout<<s<<(param)<<std::endl;}
 #else
 #define SCUD_PRINT_STR(x)
 #define SCUD_PRINT_STR_WITH_PARAM(x,param)
 #endif
-    
+
 #define SCUD_MAX_POSSIBLE_PRIORITY 127
 #if SCUD_MAX_POSSIBLE_PRIORITY+1 < SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES
 #error "Maximum available priority is greater than maximum allowed priority"
 #endif
+
+
+
+namespace SCUD{
     typedef enum {
         SCUD_RC_OK=0,
         SCUD_RC_FAIL_INVALID_PARAM,
@@ -154,8 +160,8 @@ namespace SCUD{
 #endif
 #ifndef SCUD_CUSTOM_MAP_AVAILABLE
 template<typename Tid, typename Container> class SCMap{
-        std::map<Tid,Container> itsmap;
-        typename std::map<Tid,Container>::iterator itsit;
+        std::unordered_map<Tid,Container> itsmap;
+        typename std::unordered_map<Tid,Container>::iterator itsit;
     public:
         SCMap(){
             resetIterator();
@@ -163,9 +169,9 @@ template<typename Tid, typename Container> class SCMap{
         long long size(){return itsmap.size();};
         
         Container getCurrentContent(){
-            //if(itsit==itsmap.end()){
-            //    itsit=itsmap.begin();
-            //}
+            if(itsit==itsmap.end()){
+                itsit=itsmap.begin();
+            }
             return itsit->second;
         }
         Tid getCurrentId(){
@@ -191,13 +197,13 @@ template<typename Tid, typename Container> class SCMap{
         };
         Container find(Tid& t,bool& res){
             res=true;
-            typename std::map<Tid,Container>::iterator icit=itsmap.find(t);
+            typename std::unordered_map<Tid,Container>::iterator icit=itsmap.find(t);
             if(icit==itsmap.end()){
+                Container c;
                 res=false;
-                return icit->second;
+                return c;
             }
-            Container c;
-            return c;
+            return icit->second;
         };
         bool isExgausted(){
             if(itsit==itsmap.end())
@@ -257,24 +263,30 @@ template<typename T> class SCQueue{
 #include "scud_custom_queue.h"
 #endif
 #ifndef SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE
-    template<typename T> class SCMinOrderedList{
-        std::priority_queue<T> mypq;
+    template<typename Tid,typename T1, typename T2, typename T3> class SCMinOrderedList{
+        std::priority_queue<T1,T2,T3> mypq;
+        std::unordered_map<Tid, char> uniqueItems;
     public:
-        
-        void push(T& element){
-            
+        void push(Tid itsId,T1& element){
+            typename std::unordered_map<Tid,char>::const_iterator it = uniqueItems.find (itsId);
+            if(it==uniqueItems.end()){
+                mypq.push(element);
+                uniqueItems[itsId]=0;
+            }
         }
-        T& top(){
-            
+        T1 top(){
+            return mypq.top();
         }
-        void pop(){
-            
+        void pop(Tid itsId){
+            mypq.pop();
+            uniqueItems.erase(itsId);
         }
         long long size(){
-            
+            return mypq.size();
         }
         void clear(){
-            
+            mypq.clear();
+            uniqueItems.clear();
         }
         
     };
@@ -346,12 +358,12 @@ class SCRng{
 
 class SCHelper{
         static char itsVersion[];
-    public:
-        static char* version(){
-            return itsVersion;
-        }
-    #ifdef SCUD_IOSTREAM_AVAILABLE
-        static std::string convertReturnCodeToString(SCUD_RC val){
+public:
+     static char* version(){
+         return itsVersion;
+     };
+#ifdef SCUD_IOSTREAM_AVAILABLE
+     static std::string convertReturnCodeToString(SCUD_RC val){
             std::string result="Result: undefined";
             switch (val) {
                 case SCUD_RC_OK:result="Result: OK";break;
@@ -386,6 +398,9 @@ class SCHelper{
     template<typename TSchedulable,typename Tid> class LinkableSchedulerPriority;
     template<typename TSchedulable,typename Tid> class LinkableSchedulerNaiveRR;
     template<typename TSchedulable,typename Tid> class LinkableSchedulerDRR;
+#ifdef SCUD_WFQ_AVAILABLE
+    template<typename TSchedulable,typename Tid> class LinkableSchedulerWFQ;
+#endif
     template<typename TSchedulable,typename Tid> class LinkableNull;
     template<typename TSchedulable,typename Tid> class LinkablePass;
     /*
@@ -401,6 +416,8 @@ class SCHelper{
             TSchedulable scheduled;
             long long schParam;
 #ifdef SCUD_WFQ_AVAILABLE
+            float weight;
+            float prevWeight;
             SCUDTimestamp timestamp;
 #endif
             Queueable(){schParam=-1;};
@@ -414,10 +431,23 @@ class SCHelper{
         
     protected:
         struct SchedulingProperties{
+#ifdef SCUD_WFQ_AVAILABLE
             float weight;
+            float prevWeight;
+#endif
             char priority;
-            SchedulingProperties(){weight=-1;priority=-1;}
-            SchedulingProperties(float w,char p){weight=w;priority=p;}
+            SchedulingProperties(){
+#ifdef SCUD_WFQ_AVAILABLE
+                weight=-1;
+#endif
+                priority=-1;
+            }
+            SchedulingProperties(float w,char p){
+#ifdef SCUD_WFQ_AVAILABLE
+                weight=w;
+#endif
+                priority=p;
+            }
         };
         typedef struct _sDRRControlInfo{
             bool ignoreDrr;
@@ -432,15 +462,17 @@ class SCHelper{
         friend class LinkableSchedulerPriority<TSchedulable,Tid>;
         friend class LinkableNull<TSchedulable,Tid>;
         friend class LinkablePass<TSchedulable,Tid>;
-        
+#ifdef SCUD_WFQ_AVAILABLE
+        friend class LinkableSchedulerWFQ<TSchedulable,Tid>;
+#endif
         Linkable<TSchedulable,Tid>* next;
         Linkable<TSchedulable,Tid>* prev;
         SchedulingProperties scp;
         Tid getId(){
             //lockerId.lock();
-            Tid t=itsId;
+            //Tid t=itsId;
             //lockerId.unlock();
-            return t;
+            return itsId;
         };
         void setId(Tid tid){
             //lockerId.lock();
@@ -481,21 +513,71 @@ class SCHelper{
             SCUD_PRINT_STR("exit Linkable::_linkSuccessor");
             return SCUD_RC_OK;
         };
-        virtual SCUD_RC _propagateWFQParams(Linkable<TSchedulable,Tid>* link,SCUDTimestamp virStart, double weight){
-            
-            return SCUD_RC_OK;
-        }
+//        virtual SCUD_RC _propagateWFQParams(Linkable<TSchedulable,Tid>* link,SCUDTimestamp virStart, float weight){
+//            SCUD_PRINT_STR("enter Linkable::_propagateWFQParams");
+//            if(link!=0){
+//                lockerLinkable.lock();
+//                Linkable<TSchedulable,Tid>* n=this->next;
+//                if(n){
+//                    n->_propagateWFQParams(link,virStart,weight);
+//                }
+//                lockerLinkable.unlock();
+//                SCUD_PRINT_STR("exit Linkable::_propagateWFQParams - OK");
+//                return SCUD_RC_OK;
+//            }
+//            SCUD_PRINT_STR("exit Linkable::_propagateWFQParams - invalid link");
+//            return SCUD_RC_FAIL_INVALID_PARAM;
+//        }
         virtual SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>*  link,SchedulingProperties scps){
             return SCUD_RC_OK;
         };
-        virtual SCUD_RC _prePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+        virtual SCUD_RC _simulatePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
             struct Linkable<TSchedulable,Tid>::Queueable temp;
+            this->lockerLinkable.lock();
             temp.schParam=-1;
+#ifdef SCUD_WFQ_AVAILABLE
+            temp.weight=this->scp.weight;
+            if(this->scp.weight<SCUD_WFQ_MIN_POSSIBLE_WEIGHT){
+                SCUD_PRINT_STR("WARNING: weight is less than possible minimum");
+            }
+#endif
+            this->lockerLinkable.unlock();
             SCUD_RC rc=SCUD_RC_OK;
             qu=temp;
             return rc;
         };
-        
+    protected:
+        Linkable():next(0),prev(0){
+            //objects.reserve(1024);
+            scp.weight=SCUD_WFQ_MIN_POSSIBLE_WEIGHT;
+            scp.prevWeight=SCUD_WFQ_MIN_POSSIBLE_WEIGHT;
+            scp.priority=-1;
+#ifdef SCUD_DEBUG_MODE_ENABLED
+            elementClass="Linkable";
+#endif
+        };
+        /*
+        //TODO: Consider Removal
+        Linkable(unsigned long initialObjCount):next(0),prev(0){
+#ifdef SCUD_DEBUG_MODE_ENABLED
+            elementClass="Linkable";
+#endif
+            scp.weight=SCUD_WFQ_MIN_POSSIBLE_WEIGHT;
+            scp.prevWeight=SCUD_WFQ_MIN_POSSIBLE_WEIGHT;
+            scp.priority=-1;
+            //objects.reserve(initialObjCount);
+        };
+         */
+        virtual ~Linkable(){
+            SCUD_PRINT_STR("enter Linkable::~Linkable");
+            lockerLinkable.lock();
+            prev=0;
+            next=0;
+            lockerLinkable.unlock();
+            
+            SCUD_PRINT_STR("exit Linkable::~Linkable");
+        };
+
     public:
         struct LinkedObjectsTuple {
             SCVector<Linkable<TSchedulable,Tid>* > prevObject;
@@ -509,34 +591,6 @@ class SCHelper{
                 nextObject=n;
             };
         } ;
-        
-        Linkable():next(0),prev(0){
-            //objects.reserve(1024);
-            scp.weight=0;
-            scp.priority=-1;
-#ifdef SCUD_DEBUG_MODE_ENABLED
-            elementClass="Linkable";
-#endif
-        };
-        //TODO: Consider Removal
-        Linkable(unsigned long initialObjCount):next(0),prev(0){
-#ifdef SCUD_DEBUG_MODE_ENABLED
-            elementClass="Linkable";
-#endif
-            scp.weight=0;
-            scp.priority=-1;
-            //objects.reserve(initialObjCount);
-        };
-        virtual ~Linkable(){
-            SCUD_PRINT_STR("enter Linkable::~Linkable");
-            lockerLinkable.lock();
-            prev=0;
-            next=0;
-            lockerLinkable.unlock();
-            
-            SCUD_PRINT_STR("exit Linkable::~Linkable");
-        };
-        
         virtual void processOnPullPush(TSchedulable sch, long long schedulingParam){
             
         };
@@ -597,16 +651,17 @@ class SCHelper{
         }
         
         virtual SCUD_RC setWeight(float w){
-            if(w<0){
+            if(w<SCUD_WFQ_MIN_POSSIBLE_WEIGHT){
                 SCUD_PRINT_STR("Linkable::setWeight - Attepmt of setting invalid weight:new weight is less than 0");
                 return SCUD_RC_FAIL_INVALID_WEIGHT;
             }
-            //setWeight(weight);
             lockerLinkable.lock();
             if(next){
-                typename Linkable<TSchedulable, Tid>::SchedulingProperties scps;
-                scps.weight=w;
-                scps.priority=this->scp.priority;
+#ifdef SCUD_WFQ_AVAILABLE
+                scp.prevWeight=scp.weight;
+                scp.weight=w;
+#endif
+                scp.priority=this->scp.priority;
                 next->_propagateSchedulingProperties(this,this->scp);
             }
             lockerLinkable.unlock();
@@ -623,18 +678,19 @@ class SCHelper{
             lockerLinkable.lock();
             this->scp.priority=prio;
             if(next){
-                //typename Linkable<TSchedulable, Tid>::SchedulingProperties scps;
-                //scps.weight=this->scp.weight;
-                //scps.priority=this->scp.priority;
+
                 next->_propagateSchedulingProperties(this,this->scp);
             }
             lockerLinkable.unlock();
             return SCUD_RC_OK;
         };
         float getWeight(){
+            float weight=-1;
+#ifdef SCUD_WFQ_AVAILABLE
             lockerLinkable.lock();
-            float weight=this->scp.weight;
+            weight=this->scp.weight;
             lockerLinkable.unlock();
+#endif
             return weight;
         };
         char getPriority(){
@@ -759,6 +815,15 @@ class SCHelper{
     template<typename TSchedulable,typename Tid> class LinkableNull :public Linkable<TSchedulable,Tid>{
         //Locker lockerNull;
     protected:
+        SCUD_RC _simulatePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+            qu.schParam=-1;
+#ifdef SCUD_WFQ_AVAILABLE
+            qu.weight=-1;
+            qu.prevWeight=-1;
+#endif
+            SCUD_RC r=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
+            return r;
+        }
         SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
             SCUD_RC retcode=SCUD_RC_OK;
             SCUD_PRINT_STR("enter LinkableNull::_pull");
@@ -799,6 +864,12 @@ class SCHelper{
             this->elementClass="Null";
 #endif
         }
+        LinkableNull(Tid tid){
+#ifdef SCUD_DEBUG_MODE_ENABLED
+            this->elementClass="Null";
+#endif
+            this->setId(tid);
+        };
         SCUD_RC push(TSchedulable sch, long long schedulingParam){
             SCUD_PRINT_STR("enter LinkableNull::push");
             this->processOnPush(sch, schedulingParam);
@@ -834,6 +905,25 @@ class SCHelper{
         float droppingProbability;
         SCRng rng;
     protected:
+        SCUD_RC _simulatePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+            SCUD_RC r=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
+            if(expectedToDrop(qu.scheduled, qu.schParam)){
+                qu.schParam=-1;
+                
+            }else{
+                this->lockerLinkable.lock();
+                r= this->prev->_simulatePull(qu);
+#ifdef SCUD_WFQ_AVAILABLE
+                if(this->scp.weight<SCUD_WFQ_MIN_POSSIBLE_WEIGHT){
+                    SCUD_PRINT_STR("WARNING: weight is less than possible minimum");
+                }
+                qu.weight=this->scp.weight;
+                qu.prevWeight=this->scp.prevWeight;
+#endif
+                this->lockerLinkable.unlock();
+            }
+            return r;
+        }
         bool _expectedToDrop(TSchedulable sch, long long schedulingParam){
             bool res=true;
             this->lockerLinkable.lock();
@@ -855,6 +945,16 @@ class SCHelper{
             this->lockerLinkable.unlock();
             return res;
         }
+        SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>*  link,typename Linkable<TSchedulable,Tid>::SchedulingProperties scps){
+            SCUD_PRINT_STR("LinkablePass::_propagateSchedulingProperties");
+            this->lockerLinkable.lock();
+            Linkable<TSchedulable,Tid>* n=this->next;
+            this->lockerLinkable.unlock();
+            if(n){
+                n->_propagateSchedulingProperties(link,scps);
+            }
+            return SCUD_RC_OK;
+        };
         SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI){
             SCUD_RC retcode=SCUD_RC_OK;
             this->lockerLinkable.lock();
@@ -885,6 +985,7 @@ class SCHelper{
                 
             }
         };
+
         void initializeRandomSamples(){
             currentRandom=0;
             droppingProbability=-1;
@@ -928,8 +1029,8 @@ class SCHelper{
             Linkable<TSchedulable,Tid>* p=this->prev;
             this->lockerLinkable.unlock();
             if(p){
-                retcode=p->_prePull(pp);
-                if( retcode==SCUD_RC_OK && this->shouldDrop(pp.scheduled,pp.schParam)==false){
+                retcode=p->_simulatePull(pp);
+                if( retcode==SCUD_RC_OK && pp.schParam>0 && this->shouldDrop(pp.scheduled,pp.schParam)==false){
                     typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI;
                     uCI.ssciDRR.ignoreDrr=true;
                     retcode=p->_pull(qu,uCI);
@@ -961,17 +1062,6 @@ class SCHelper{
             
             return retcode;
         }
-        //        SCUD_RC setWeight(float w){
-        //            this->lockerLinkable.lock();
-        //            Linkable<TSchedulable, Tid>* n=this->next;
-        //            this->lockerLinkable.unlock();
-        //
-        //            if(n!=0){
-        //                n->setWeight(w);
-        //            }
-        //
-        //            return SCUD_RC_OK;
-        //        };
         virtual bool canPull(){
             this->lockerLinkable.lock();
             Linkable<TSchedulable,Tid>* p=this->prev;
@@ -989,6 +1079,7 @@ class SCHelper{
         virtual bool expectedToDrop(TSchedulable& sch, long long schedulingParam){
             return _expectedToDrop(sch, schedulingParam);
         }
+        
     };
     /*
      -------------------------------------------------------------------------
@@ -998,7 +1089,10 @@ class SCHelper{
     template<typename TSchedulable,typename Tid> class LinkableQueue :public Linkable<TSchedulable,Tid>{
         SCQueue<struct Linkable<TSchedulable,Tid>::Queueable> queue;
     protected:
-
+        long long nextSchParam;
+#ifdef SCUD_WFQ_AVAILABLE
+        SCUDTimestamp nextTimestamp;
+#endif
         long highT;
         long lowT;
         long long defcount;
@@ -1013,18 +1107,26 @@ class SCHelper{
             
             return true;
         }
-        SCUD_RC _prePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
-            struct Linkable<TSchedulable,Tid>::Queueable temp;
-            temp.schParam=-1;
+        SCUD_RC _simulatePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
             SCUD_RC rc=SCUD_RC_OK;
             this->lockerLinkable.lock();
-            if(queue.size()>this->lowT){
-                this->queue.back(qu);
+            long long qs=queue.size();
+            qu.schParam=-1;
+#ifdef SCUD_WFQ_AVAILABLE
+            if(this->scp.weight<SCUD_WFQ_MIN_POSSIBLE_WEIGHT){
+                SCUD_PRINT_STR("WARNING: weight is less than possible minimum");
+            }
+            qu.weight=this->scp.weight;
+            qu.prevWeight=this->scp.prevWeight;
+            qu.timestamp=this->nextTimestamp;
+#endif
+            if(qs>this->lowT){
+                qu.schParam=this->nextSchParam;
                 rc=SCUD_RC_OK;
             }else{
-                qu=temp;
-                rc=SCUD_RC_FAIL_LINK_UNDER_LOW_THRESHOLD;
+                rc=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
             }
+            
             this->lockerLinkable.unlock();
             return rc;
         }
@@ -1047,17 +1149,34 @@ class SCHelper{
                         qu=temp;
                         this->queue.pop_back();
                         defcount=defcount-temp.schParam;
-                        if(qs==this->lowT)
+                        if(qs==this->lowT+1)
                         {
+#ifdef SCUD_WFQ_AVAILABLE
+                            nextTimestamp=-1;
+#endif
+                            nextSchParam=-1;
                             if(n){
                                 n->_signalAvailability(false,qs-1,this->scp.weight,this->scp.priority);
                             }
+                        }else{
+                            this->queue.back(temp);
+#ifdef SCUD_WFQ_AVAILABLE
+                            nextTimestamp=temp.timestamp;
+#endif
+                            nextSchParam=temp.schParam;
                         }
+                        
                     }else{
                         defcount=defcount+ldc;
+#ifdef SCUD_WFQ_AVAILABLE
                         if(n){
                             n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
                         }
+#else
+                        if(n){
+                            n->_signalAvailability(false,qs,-1,this->scp.priority);
+                        }
+#endif
                         retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
                     }
                     this->lockerLinkable.unlock();
@@ -1067,18 +1186,29 @@ class SCHelper{
                 else{
                     this->lockerLinkable.unlock();
                     defcount=0;
+#ifdef SCUD_WFQ_AVAILABLE
                     if(n){
                         n->_signalAvailability(false,qs,this->scp.weight,this->scp.priority);
                     }
-                    
+#else
+                    if(n){
+                        n->_signalAvailability(false,qs,-1,this->scp.priority);
+                    }
+#endif
                     retcode=SCUD_RC_FAIL_LINK_UNDER_LOW_THRESHOLD;
                 }
             }else{
                 this->lockerLinkable.unlock();
                 defcount=0;
+#ifdef SCUD_WFQ_AVAILABLE
                 if(n){
                     n->_signalAvailability(false,0,this->scp.weight,this->scp.priority);
                 }
+#else
+                if(n){
+                    n->_signalAvailability(false,0,-1,this->scp.priority);
+                }
+#endif
                 retcode=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
             }
             
@@ -1087,21 +1217,25 @@ class SCHelper{
         void _signalAvailability(bool canPull,long long countAvailable,float weight,char priority){
         }
     public:
-        LinkableQueue(Tid tid):lowT(0),highT(0){
+        LinkableQueue(Tid tid):lowT(SCUD_QUEUE_DEFAULT_LOW_THRESHOLD),highT(SCUD_QUEUE_DEFAULT_HIGH_THRESHOLD){
 #ifdef SCUD_DEBUG_MODE_ENABLED
             this->elementClass="Queue";
 #endif
             this->setId(tid);
             this->defcount=SCUD_DRR_QUANTUM;
             this->drrQuantum=SCUD_DRR_QUANTUM;
+            this->nextTimestamp=0;
+            this->nextSchParam=-1;
         };
-        LinkableQueue():lowT(0),highT(0){
+        LinkableQueue():lowT(SCUD_QUEUE_DEFAULT_LOW_THRESHOLD),highT(SCUD_QUEUE_DEFAULT_HIGH_THRESHOLD){
 #ifdef SCUD_DEBUG_MODE_ENABLED
             this->elementClass="Queue";
 #endif
             this->setId(this);
             this->defcount=SCUD_DRR_QUANTUM;
             this->drrQuantum=SCUD_DRR_QUANTUM;
+            this->nextTimestamp=0;
+            this->nextSchParam=-1;
         };
         SCUD_RC setHighThreshold(long high){
             if(high<0)
@@ -1159,23 +1293,32 @@ class SCHelper{
             Linkable<TSchedulable,Tid>* n=this->next;
             long long qs=queue.size();
             long hT=this->highT,lT=this->lowT;
-            if(hT>0 && qs<hT){
+            if(hT>0 && qs+1<hT)
+            {
                 struct Linkable<TSchedulable,Tid>::Queueable q;
                 q.scheduled=sch;
 #ifdef SCUD_WFQ_AVAILABLE
                 q.timestamp=SCTime::getCurrentTime();
+                q.weight=this->scp.weight;
+                q.prevWeight=this->scp.prevWeight;
 #endif
                 q.schParam=schedulingParam;
                 this->queue.push_front(q);
                 this->lockerLinkable.unlock();
                 if(n && qs==lT ){
+                    nextSchParam=schedulingParam;
+#ifdef SCUD_WFQ_AVAILABLE
                     n->_signalAvailability(true,qs+1,this->scp.weight,this->scp.priority);
+#else
+                    n->_signalAvailability(true,qs+1,-1,this->scp.priority);
+#endif
                 }
                 this->processOnPush(sch, schedulingParam);
                 //            else{
                 //                this->next->_signalAvailability(false,qs+1);
                 //            }
-            }else if(qs>=hT){
+            }else 
+            {
                 this->lockerLinkable.unlock();
                 res=SCUD_RC_FAIL_LINK_ABOVE_HIGH_THRESHOLD;
             }
@@ -1233,7 +1376,32 @@ class SCHelper{
             SCUD_PRINT_STR("exit LinkablePass::_pull");
             return retcode;
         }
-        
+        SCUD_RC _simulatePull(struct Linkable<TSchedulable,Tid>::Queueable& qu){
+            SCUD_RC r=SCUD_RC_FAIL_LINK_NO_PACKET_AVAILABLE;
+            this->lockerLinkable.lock();
+            if(this->prev){
+                r= this->prev->_simulatePull(qu);
+            }
+#ifdef SCUD_WFQ_AVAILABLE
+            if(this->scp.weight<SCUD_WFQ_MIN_POSSIBLE_WEIGHT){
+                SCUD_PRINT_STR("WARNING: weight is less than possible minimum");
+            }
+            qu.weight=this->scp.weight;
+            qu.prevWeight=this->scp.prevWeight;
+#endif
+            this->lockerLinkable.unlock();
+            return r;
+        }
+        SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>*  link,typename Linkable<TSchedulable,Tid>::SchedulingProperties scps){
+            SCUD_PRINT_STR("LinkablePass::_propagateSchedulingProperties");
+            this->lockerLinkable.lock();
+            Linkable<TSchedulable,Tid>* n=this->next;
+            this->lockerLinkable.unlock();
+            if(n){
+                n->_propagateSchedulingProperties(link,scps);
+            }
+            return SCUD_RC_OK;
+        };
         void _signalAvailability(bool canPull, long long countAvailable, float weight,char priority){
             SCUD_PRINT_STR("LinkablePass::_signalAvailability");
             
@@ -1318,14 +1486,20 @@ class SCHelper{
             typename Linkable<TSchedulable,Tid>::SchedulingProperties scps;
             Linkable<TSchedulable,Tid>* link;
             InternalContainer(){
-                scps.weight=-1;
                 scps.priority=-1;
                 link=0;
+#ifdef SCUD_WFQ_SCHEDULER_AVAILABLE
+                scps.weight=-1;
+                Tid itsId;
+#endif
             }
-            InternalContainer(Linkable<TSchedulable,Tid>* l, float weight, char priority){
-                scps.weight=weight;
+            InternalContainer(Tid itsId,Linkable<TSchedulable,Tid>* l, float weight, char priority){
                 scps.priority=priority;
                 link=l;
+#ifdef SCUD_WFQ_SCHEDULER_AVAILABLE
+                scps.weight=weight;
+                this->itsId=itsId;
+#endif
             }
         };
         SCMap<Tid,InternalContainer> id2prepended ;
@@ -1359,7 +1533,11 @@ class SCHelper{
             id2prepended.erase(linkId);
             this->lockerLinkable.unlock();
             if(found){
+#ifdef SCUD_WFQ_SCHEDULER_AVAILABLE
                 this->_releaseScheduledEntry(linkId,link,ic.scps.weight,ic.scps.priority);
+#else
+                this->_releaseScheduledEntry(linkId,link,-1,ic.scps.priority);
+#endif
             }
             SCUD_PRINT_STR("exit LinkableScheduler::_unlinkPredecessor");
             return SCUD_RC_OK;
@@ -1390,7 +1568,9 @@ class SCHelper{
                 Linkable<TSchedulable,Tid>* link=this->calculateNextSource(objEnded);
                 if(link){
                     retcode=link->_pull(qu,this->usci);
-                    //if( link==0)
+                    if( retcode==SCUD_RC_OK){
+                        this->_finalizePull(link);
+                    }
                     //    break;
                 }else{
                     break;
@@ -1435,7 +1615,7 @@ class SCHelper{
                 float w=link->getWeight();
                 char pr=link->getPriority();
                 if(this->_scheduleEntry(linkId,link,w,pr)){
-                    InternalContainer ic(link,w,pr);
+                    InternalContainer ic(linkId,link,w,pr);
                     id2prepended.insert(linkId, ic);
                     this->_scheduleFinalizeEntry(linkId,link);
                     SCUD_PRINT_STR("exit LinkableScheduler::linkPredecessor - OK");
@@ -1452,6 +1632,9 @@ class SCHelper{
             this->lockerLinkable.unlock();
             return res;
         };
+        virtual void _finalizePull(Linkable<TSchedulable,Tid>*){
+            
+        }
         virtual ~LinkableScheduler(){
             SCUD_RC rc=SCUD_RC_OK;
             //typename Linkable<TSchedulable,Tid>::LinkedObjectsTuple lot=this->unlink(&rc);
@@ -1485,7 +1668,11 @@ class SCHelper{
                 Tid t=id2prepended.getCurrentId();
                 ptn.prevObject.push_back(ic.link);
                 ic.link->_unlinkSuccessor(this);
+#ifdef SCUD_WFQ_SCHEDULER_AVAILABLE
                 this->_releaseScheduledEntry(t,ic.link,ic.scps.weight,ic.scps.priority);
+#else
+                this->_releaseScheduledEntry(t,ic.link,-1,ic.scps.priority);
+#endif
             }
             id2prepended.clear();
             ptn.nextObject=this->next;
@@ -1902,10 +2089,6 @@ class SCHelper{
             }
             return true;
         }
-        SCUD_RC _propagateWFQParams(Linkable<TSchedulable,Tid>* link,SCUDTimestamp virStart, double weight){
-            
-            return SCUD_RC_OK;
-        }
         SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>* link,typename Linkable<TSchedulable,Tid>::SchedulingProperties scps){
             if(link==0){
                 SCUD_PRINT_STR("exit LinkableSchedulerPriority::_propagateSchedulingProperties - invalid param");
@@ -1926,7 +2109,9 @@ class SCHelper{
             }
             if(found==true){
                 ic.scps.priority=scps.priority;
+#ifdef SCUD_WFQ_SCHEDULER_AVAILABLE
                 ic.scps.weight=scps.weight;
+#endif
                 ic.link=link;
                 prioritizedSources[scps.priority]=link;
                 this->id2prepended.setContent(linkId,ic);
@@ -1979,9 +2164,36 @@ class SCHelper{
      -----------------------------------------------------------------------------
      */
 #ifdef SCUD_WFQ_AVAILABLE
+#include "limits"
     template<typename TSchedulable,typename Tid> class  LinkableSchedulerWFQ:public LinkableScheduler<TSchedulable,Tid>{
+    public:
+        struct _WFQOrderingTuple {SCUDTimestamp virFinish; Linkable<TSchedulable,Tid>* link;};
+        struct _WFQComparatorLess
+        {
+            bool operator()(const _WFQOrderingTuple& left, const _WFQOrderingTuple& right)
+            {
+                return left.virFinish > right.virFinish;
+            }
+        };
     protected:
+        SCMinOrderedList<Tid,LinkableSchedulerWFQ<TSchedulable,Tid>::_WFQOrderingTuple,std::vector<LinkableSchedulerWFQ<TSchedulable,Tid>::_WFQOrderingTuple>,LinkableSchedulerWFQ<TSchedulable,Tid>::_WFQComparatorLess> minord;
         long long linkRate;
+        double sumWeight;
+        double linkShare;
+        long linksToPreload=SCUD_WFQ_LINK_POLLING_BATCH_SIZE;
+//        SCUD_RC _propagateWFQParams(Linkable<TSchedulable,Tid>* link,SCUDTimestamp virStart, float weight){
+//            if(link!=0){
+//                this->lockerLinkable.lock();
+//                this->sumWeight+=weight;
+//                _WFQOrderingTuple wot;
+//                wot.link=link;
+//                wot.virFinish=virStart+(schedParam / (this->linkShare * weight));
+//                minord.push(wot);
+//                this->lockerLinkable.unlock();
+//            }
+//            return SCUD_RC_OK;
+//        }
+        
         void _signalAvailability(bool canPull, long long countAvailable, float weight,char priority){
             if(canPull){
             }
@@ -1992,18 +2204,54 @@ class SCHelper{
             }
         }
         bool _scheduleEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
-            this->id2prepended.resetIterator();
+            linksToPreload=SCUD_WFQ_LINK_POLLING_BATCH_SIZE;
+            long long entries=this->id2prepended.size();
+            if(entries>0){
+                this->sumWeight+=weight;
+                this->linkShare=this->linkRate/this->sumWeight;
+            }
+            
             return true;
         };
         bool _scheduleFinalizeEntry(Tid linkId,Linkable<TSchedulable,Tid>* link){
-            this->id2prepended.resetIterator();
+            //this->id2prepended.resetIterator();
+            
             return true;
         }
         void _releaseScheduledEntry(Tid linkId,Linkable<TSchedulable,Tid>* link,float weight,char priority){
-
+            long long entries=this->id2prepended.size();
+            linksToPreload=SCUD_WFQ_LINK_POLLING_BATCH_SIZE;
+            if(entries>0){
+                this->sumWeight-=weight;
+                if(this->sumWeight>0){
+                   this->linkShare=this->linkRate/this->sumWeight;
+                }else{
+                    this->linkShare=-1;
+                }
+            }
         }
+        
+        SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>* link,typename Linkable<TSchedulable,Tid>::SchedulingProperties scps){
+            if(link==0){
+                SCUD_PRINT_STR("exit LinkableSchedulerWFQ::_propagateSchedulingProperties - invalid param");
+                return SCUD_RC_FAIL_INVALID_PARAM;
+            }
+            this->lockerLinkable.lock();
+            this->sumWeight-=scps.prevWeight;
+            this->sumWeight+=scps.weight;
+            if(this->sumWeight>SCUD_WFQ_MIN_POSSIBLE_WEIGHT){
+                this->linkShare=this->linkRate/this->sumWeight;
+            }else{
+                this->linkShare=-1;
+            }
+            this->lockerLinkable.unlock();
+            SCUD_RC result=SCUD_RC_OK;;
+            SCUD_PRINT_STR("exit LinkableSchedulerWFQ::_propagateSchedulingProperties");
+            return result;
+        };
         Linkable<TSchedulable,Tid>* calculateNextSource(bool pktsEnded){
             Linkable<TSchedulable,Tid>* l=0;
+            Linkable<TSchedulable,Tid>* l1=0;
             this->lockerLinkable.lock();
             long long entriesCount=this->id2prepended.size();
             if(entriesCount==0){
@@ -2021,39 +2269,110 @@ class SCHelper{
                 }
             }else
             {
-                long long count=0;
-                while(1)
+                long long listsize=this->id2prepended.size()-minord.size();
+                if(listsize<0)
                 {
+                    listsize=-listsize;
+                }
+                this->id2prepended.resetIterator();
+                double finish=std::numeric_limits<float>::max();
+                
+                //std::cout<<"INSIDE WFQ -- "<<std::endl;
+                while(this->id2prepended.isExgausted()==false)
+                {
+                    
                     l=this->id2prepended.getCurrentContent().link;
-                    this->id2prepended.promoteIteratorSafely();
-                    ++count;
-                    if(l && l->canPull())
-                        break;
-                    if(count>=entriesCount){
+                    struct Linkable<TSchedulable,Tid>::Queueable pp;
+                    l->_simulatePull(pp);
+                    this->id2prepended.promoteIterator();
+                    if(pp.schParam<1)
+                        continue;
+                    float w=(pp.weight*this->linkShare);
+                    double fin=pp.timestamp+((float)pp.schParam/w);
+                    if(fin<finish){
+                        finish=fin;
+                        l1=l;
+                    }
+                    
+                    /*
+                    //std::cout<<"***"<<std::endl;
+                    --linksToPreload;
+                    --listsize;
+                    if(listsize==0){
                         l=0;
                         break;
                     }
+                    this->id2prepended.promoteIterator();
+                    l=this->id2prepended.getCurrentContent().link;
+                    struct Linkable<TSchedulable,Tid>::Queueable pp;
+                    l->_simulatePull(pp);
+                    
+                    if(pp.weight<SCUD_WFQ_MIN_POSSIBLE_WEIGHT || pp.schParam<1)
+                        continue;
+                    
+                    struct _WFQOrderingTuple ordTuple;
+                    ordTuple.link=l;
+                    //double frac=pp.schParam/(pp.weight*this->linkShare);
+                    ordTuple.virFinish=pp.timestamp+(float)pp.schParam/(pp.weight*this->linkShare);
+                    //ordTuple.virFinish*=-1;
+                    minord.push(ordTuple.link->getId(),ordTuple);
+                    */
+                    //if(l && l->canPull())
+                    //    break;
+                    
                 }
+                /*
+                linksToPreload=1;
+                long s=minord.size();
+                if(s>0){
+                    if(s<this->id2prepended.size()){
+                        linksToPreload=SCUD_WFQ_LINK_POLLING_BATCH_SIZE;
+                    }
+                    struct _WFQOrderingTuple ordTuple1=minord.top();
+                    minord.pop(ordTuple1.link->getId());
+                    l= ordTuple1.link;
+                }else{
+                    l=0;
+                }
+                 */
             }
             this->lockerLinkable.unlock();
-            return l;
+            return l1;
         };
+        void _finalizePull(Linkable<TSchedulable,Tid>* link){
+            this->lockerLinkable.lock();
+            struct Linkable<TSchedulable,Tid>::Queueable pp;
+            link->_simulatePull(pp);
+            if(pp.schParam>0){
+                struct _WFQOrderingTuple ordTuple;
+                ordTuple.link=link;
+                //double frac=pp.schParam/(pp.weight*this->linkShare);
+                ordTuple.virFinish=pp.timestamp+pp.schParam/(pp.weight*this->linkShare);
+                //ordTuple.virFinish*=-1;
+                minord.push(ordTuple.link->getId(),ordTuple);
+            }
+            this->lockerLinkable.unlock();
+        }
     public:
         LinkableSchedulerWFQ(Tid tid){
 #ifdef SCUD_DEBUG_MODE_ENABLED
-            this->elementClass="SchedulerWeightedFairQueue";
+            this->elementClass="LinkableSchedulerWFQ";
 #endif
             this->setId(tid);
             this->id2prepended.resetIterator();
             this->linkRate=1;
+            this->sumWeight=0;
+            linksToPreload=SCUD_WFQ_LINK_POLLING_BATCH_SIZE;
         };
         LinkableSchedulerWFQ(){
 #ifdef SCUD_DEBUG_MODE_ENABLED
-            this->elementClass="SchedulerWeightedFairQueue";
+            this->elementClass="LinkableSchedulerWFQ";
 #endif
             this->setId(this);
             this->id2prepended.resetIterator();
-            this->linkRate=1;
+            this->linkRate=1000000;
+            this->sumWeight=0;
+            linksToPreload=SCUD_WFQ_LINK_POLLING_BATCH_SIZE;
         };
         SCUD_RC setLinkRate(long long r){
             if(r<1){
@@ -2063,11 +2382,12 @@ class SCHelper{
             this->lockerLinkable.lock();
             this->linkRate=r;
             this->lockerLinkable.unlock();
+            SCUD_PRINT_STR("exit LinkableSchedulerWFQ::setLinkRate");
             return SCUD_RC_OK;
         }
         bool canPull(){
             bool res=false;
-            SCUD_PRINT_STR("enter SchedulerWeightedFairQueue::canPull");
+            SCUD_PRINT_STR("enter LinkableSchedulerWFQ::canPull");
             this->lockerLinkable.lock();
             long long entriesCount=this->id2prepended.size();
             if(entriesCount>0){
