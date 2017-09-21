@@ -61,13 +61,20 @@ Any element has next methods:
 
 
 **Behavior**:
+
 Queues introduce additional methods:
+* _setDRRQuantum_ - sets quantum value for DRR algorithm. If provided value less than 1 - the default value is set.
 * _size()_ - returns number of elements in given queue
 * _setLowThreshold()_ - set number of objects in queue, below which pulling will not actually take place. If _pull()_ is called and queue size is less than Low Threshold the call will do nothing.
 * _setHighThreshold()_ - set number of objects in queue, above which pushing will not actually take place. If _push()_ is called and queue size is greater than High Threshold the call will do nothing.
 * _empty()_ - empty the queue. Remember, the data objects DO NOT release user data. User must manage data objects himself.
 * _setDRRQuantum()_ - strictly positive parameter used by DRR scheduler only.
-**NB:** Data objects travelling inside the chain are encapsulated in special data structure. This data structure in some method calls is passed by value, so if you embed complex data type into this structure it may be copied!
+
+Droppers introduce 2 additional methods:
+* _shouldDrop_ - virtual method decising for each call if the next object should be dropped.
+* _expectedToDrop_ - virtual method _simulating_ the decisiion. Similar to previous but the difference is that it does NOT change the state of the dropper.
+
+**NB:** Data objects travelling inside the chain are encapsulated in special data structure. This data structure in some method calls is passed by value, so if you embed complex data type into this structure it may be copied! 
 
 **Examples**
 
