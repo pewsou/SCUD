@@ -31,7 +31,7 @@
 //#define SCUD_CUSTOM_MAP_AVAILABLE 1
 //#define SCUD_CUSTOM_VECTOR_AVAILABLE 1
 //#define SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE 1
-#define SCUD_WFQ_AVAILABLE 1
+//#define SCUD_WFQ_AVAILABLE 1
 
 #define SCUD_IOSTREAM_AVAILABLE
 #define SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES 64
@@ -88,8 +88,6 @@
 #if SCUD_MAX_POSSIBLE_PRIORITY+1 < SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES
 #error "Maximum available priority is greater than maximum allowed priority"
 #endif
-
-
 
 namespace SCUD{
     typedef enum {
@@ -424,9 +422,9 @@ public:
             TSchedulable scheduled;
             long long schParam;
 #ifdef SCUD_WFQ_AVAILABLE
+            SCUDTimestamp timestamp;
             float weight;
             float prevWeight;
-            SCUDTimestamp timestamp;
 #endif
             Queueable(){schParam=-1;};
         };
@@ -477,15 +475,10 @@ public:
         Linkable<TSchedulable,Tid>* prev;
         SchedulingProperties scp;
         Tid getId(){
-            //lockerId.lock();
-            //Tid t=itsId;
-            //lockerId.unlock();
             return itsId;
         };
         void setId(Tid tid){
-            //lockerId.lock();
             itsId=tid;
-            //lockerId.unlock();
         };
         virtual void _signalAvailability(bool canPull, long long countAvailable, float weight,char priority)=0;
         virtual SCUD_RC _pull(struct Linkable<TSchedulable,Tid>::Queueable& qu, typename Linkable<TSchedulable,Tid>::uSchedulerControlInfo uCI)=0;
@@ -521,21 +514,6 @@ public:
             SCUD_PRINT_STR("exit Linkable::_linkSuccessor");
             return SCUD_RC_OK;
         };
-//        virtual SCUD_RC _propagateWFQParams(Linkable<TSchedulable,Tid>* link,SCUDTimestamp virStart, float weight){
-//            SCUD_PRINT_STR("enter Linkable::_propagateWFQParams");
-//            if(link!=0){
-//                lockerLinkable.lock();
-//                Linkable<TSchedulable,Tid>* n=this->next;
-//                if(n){
-//                    n->_propagateWFQParams(link,virStart,weight);
-//                }
-//                lockerLinkable.unlock();
-//                SCUD_PRINT_STR("exit Linkable::_propagateWFQParams - OK");
-//                return SCUD_RC_OK;
-//            }
-//            SCUD_PRINT_STR("exit Linkable::_propagateWFQParams - invalid link");
-//            return SCUD_RC_FAIL_INVALID_PARAM;
-//        }
         virtual SCUD_RC _propagateSchedulingProperties(Linkable<TSchedulable,Tid>*  link,SchedulingProperties scps){
             return SCUD_RC_OK;
         };

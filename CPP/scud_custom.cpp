@@ -43,6 +43,7 @@ void SCUD::SCLocker::unlock(){};
 SCUD::SCLocker::~SCLocker(){};
 #endif
 
+#ifdef SCUD_WFQ_AVAILABLE
 #include <chrono>
 SCUD::SCTime::SCTime(){
     
@@ -58,4 +59,4 @@ SCUD::SCUDTimestamp SCUD::SCTime::getCurrentTime(){
 SCUD::SCTime::~SCTime(){
     
 }
-
+#endif
