@@ -21,7 +21,7 @@
 #ifndef Scud_h
 #define Scud_h
 
-#define SCUD_VERSION "0.1.9"
+#define SCUD_VERSION "0.1.11"
 
 //#define SCUD_USE_EXCEPTIONS 1
 //#define SCUD_DEBUG_MODE_ENABLED 1
@@ -33,6 +33,7 @@
 //#define SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE 1
 
 //---- EXPERIMENTAL! PLEASE DO NOT UNCOMMENT THIS MACRO!
+
 //#define SCUD_WFQ_AVAILABLE 1
 
 #define SCUD_IOSTREAM_AVAILABLE
@@ -266,6 +267,7 @@ template<typename T> class SCQueue{
 #else
 #include "scud_custom_queue.h"
 #endif
+
 #ifndef SCUD_CUSTOM_MINORDERED_LIST_AVAILABLE
     template<typename Tid,typename T1, typename T2, typename T3> class SCMinOrderedList{
         std::priority_queue<T1,T2,T3> mypq;
@@ -307,6 +309,7 @@ public:
     ~SCTime();
 };
 #endif
+
     
 #ifndef SCUD_CUSTOM_RNG_AVAILABLE
 #include <stdlib.h>
@@ -1251,7 +1254,7 @@ public:
                 struct Linkable<TSchedulable,Tid>::Queueable q;
                 q.scheduled=sch;
 #ifdef SCUD_WFQ_AVAILABLE
-                q.timestamp=SCHelper::newCount();//SCTime::getCurrentTime();
+                q.timestamp=SCHelper::newCount();
                 q.weight=this->scp.weight;
                 q.prevWeight=this->scp.prevWeight;
 #endif
@@ -1267,8 +1270,8 @@ public:
 #endif
                 }
                 this->processOnPush(sch, schedulingParam);
-
             }else 
+
             {
                 this->lockerLinkable.unlock();
                 res=SCUD_RC_FAIL_LINK_ABOVE_HIGH_THRESHOLD;
@@ -2054,6 +2057,7 @@ public:
             return res;
         }
     };
+
 };
 
 #endif /* Scud_h */
