@@ -1179,7 +1179,9 @@ public:
             this->setId(tid);
             this->defcount=SCUD_DRR_QUANTUM;
             this->drrQuantum=SCUD_DRR_QUANTUM;
+#ifdef SCUD_WFQ_AVAILABLE
             this->nextTimestamp=0;
+#endif
             this->nextSchParam=-1;
         };
         LinkableQueue():lowT(SCUD_QUEUE_DEFAULT_LOW_THRESHOLD),highT(SCUD_QUEUE_DEFAULT_HIGH_THRESHOLD){
