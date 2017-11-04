@@ -14,7 +14,9 @@ SCUD
 
 **LinkableSchedulerNaiveRR** - scheduler implementing naive Round Robin scheduling strategy;can be assigned with weight and/or priority;
 
-**LinkableSchedulerPriority** - scheduler implementing priority scheduling strategy; can be assigned with weight and/or priority;
+**LinkableSchedulerPriority** - scheduler implementing priority scheduling strategy; can be assigned with priority;
+
+**LinkableSchedulerDRR** - scheduler implementing Deficit Round Robin scheduling strategy;
 
 **LinkableNull** - stub element, discarding all incoming objects;
 
