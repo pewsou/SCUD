@@ -26,7 +26,7 @@ SCUD
 
 **Linkable<typename TSchedulable,typename Tid>::Queueable** - generic data stucture carrying user data. Consists of two fields: 
 * TSchedulable scheduled - a data to be routed; 
-* long long schParam; - numerical value used for scheduling with DRR algorithm; can be set to size of "scheduled" variable, for example, sizeof(int); it is similar by its meaning to a bytesize of received packet in telecommunication domain.
+* long long schParam - numerical value used for scheduling with DRR algorithm; can be set to size of "scheduled" variable, for example, sizeof(int); it is similar by its meaning to a bytesize of received packet in telecommunication domain.
 
 **TSchedulable** - generic type for user data;
 
