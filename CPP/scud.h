@@ -625,24 +625,6 @@ public:
             return res;
         }
         
-        virtual SCUD_RC setWeight(float w){
-#ifdef SCUD_WFQ_AVAILABLE
-            if(w<SCUD_WFQ_MIN_POSSIBLE_WEIGHT){
-                SCUD_PRINT_STR("Linkable::setWeight - Attepmt of setting invalid weight:new weight is less than 0");
-                return SCUD_RC_FAIL_INVALID_WEIGHT;
-            }
-            lockerLinkable.lock();
-            if(next){
-
-                scp.prevWeight=scp.weight;
-                scp.weight=w;
-                scp.priority=this->scp.priority;
-                next->_propagateSchedulingProperties(this,this->scp);
-            }
-            lockerLinkable.unlock();
-#endif
-            return SCUD_RC_OK;
-        };
         virtual SCUD_RC setPriority( char prio){
             if(prio<0 || prio>=SCUD_MAX_NUMBER_OF_AVAILABLE_PRIORITIES){
                 SCUD_PRINT_STR("Linkable::setPriority - Attepmt of setting invalid priority:");
@@ -660,15 +642,7 @@ public:
             lockerLinkable.unlock();
             return SCUD_RC_OK;
         };
-        float getWeight(){
-            float weight=-1;
-#ifdef SCUD_WFQ_AVAILABLE
-            lockerLinkable.lock();
-            weight=this->scp.weight;
-            lockerLinkable.unlock();
-#endif
-            return weight;
-        };
+        
         char getPriority(){
             lockerLinkable.lock();
             char priority=this->scp.priority;
@@ -1590,10 +1564,10 @@ public:
             bool found;
             id2prepended.find(linkId,found);
             if (found == false){
-                float w=link->getWeight();
+                //float w=link->getWeight();
                 char pr=link->getPriority();
-                if(this->_scheduleEntry(linkId,link,w,pr)){
-                    InternalContainer ic(linkId,link,w,pr);
+                if(this->_scheduleEntry(linkId,link,1,pr)){
+                    InternalContainer ic(linkId,link,1,pr);
                     id2prepended.insert(linkId, ic);
                     this->_scheduleFinalizeEntry(linkId,link);
                     SCUD_PRINT_STR("exit LinkableScheduler::linkPredecessor - OK");
