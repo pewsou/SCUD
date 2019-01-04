@@ -2,8 +2,8 @@
 //  main2.cpp
 //  test_SCUD
 //
-//  Created by bv on 08/07/2017.
-//  Copyright © 2017 bv. All rights reserved.
+//  Created by Boris Vigman on 08/07/2017.
+//  Copyright © 2017 Boris Vigman. All rights reserved.
 //
 
 
