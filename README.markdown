@@ -16,3 +16,7 @@ This SW is provided under terms of Affero GPL v3.0 license.
 Contacts:
 
 email: rainbowsup191@gmail.com
+
+If you think this work saved your money, time or nerves - please, consider donation :).
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](bvprojs@gmail.com)
+Many thanks in advance.
