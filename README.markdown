@@ -17,7 +17,7 @@ Contacts:
 
 email: rainbowsup191@gmail.com
 
-If you think this work saved your money, time or nerves - please, consider donation :).
+Support!
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/softserv)
 
