@@ -2,7 +2,7 @@
 //  scud_custom.cpp
 //
 //  Created by Boris Vigman on 25/07/2017.
-//  Copyright © 2017 Boris Vigman. All rights reserved.
+//  Copyright © 2017-2019 Boris Vigman. All rights reserved.
 //
 /*
  This program is free software: you can redistribute it and/or modify
