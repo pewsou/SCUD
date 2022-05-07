@@ -15,7 +15,7 @@ This SW is provided under terms of Affero GPL v3.0 license.
 
 Contacts:
 
-email: rainbowsup191@gmail.com
+email: rainbowsup191+SCUD@gmail.com
 
 Support!
 
