@@ -17,6 +17,8 @@ Contacts:
 
 email: rainbowsup191+SCUD@gmail.com
 
+[![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/bvprojs.svg?style=social&label=Follow%20%40bvprojs)](https://twitter.com/bvprojs)
+
 Support!
 
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/softserv)
